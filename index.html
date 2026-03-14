@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OM Health Care | Attendance Portal</title>
+    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="icon" type="image/jpeg" href="./assets/logo.jpeg"/>
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1e252c"/>
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+    <meta name="apple-mobile-web-app-title" content="OM Attendance"/>
+    <meta name="mobile-web-app-capable" content="yes"/>
+    <link rel="manifest" href="./manifest.json?v=3"/>
+    <link rel="apple-touch-icon" href="./assets/logo.jpeg"/>
+    <!-- Firebase SDK (v8) needed for basic redirect -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="js/firebase-config.js?v=3"></script>
+    <script src="js/auth.js?v=3"></script>
+</head>
+<body style="display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at top, #1a1a1f, #0a0a0c);">
+    
+    <div class="glass-card animate" style="text-align: center; width: 100%; max-width: 500px;">
+        <div style="margin-bottom: 2rem;">
+            <img 
+              src="./assets/logo.jpeg"
+              alt="OM Health Care"
+              onerror="this.src=LOGO_DATA"
+              style="width:80px; height:80px; 
+                     object-fit:cover; 
+                     border-radius:16px;
+                     display:block;
+                     margin:0 auto 1rem;"
+            />
+          
+            <h1 style="color: var(--primary);">OM HEALTH CARE</h1>
+            <p class="subtitle">Store Staff Attendance System</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <a href="./staff-login.html" class="btn btn-primary" style="justify-content: center; height: 55px; font-weight: 600; letter-spacing: 1px;">STAFF ACCESS PORTAL</a>
+            <a href="./admin-login.html" class="btn btn-ghost" style="justify-content: center; height: 55px; font-weight: 600; letter-spacing: 1px;">ADMINISTRATOR LOGIN</a>
+            <button id="installAppBtn" class="btn btn-outline" style="display:none; justify-content: center; height: 52px; font-weight: 600; letter-spacing: 1px;">
+              INSTALL APP
+            </button>
+        </div>
+
+        <div style="margin-top: 3rem; color: var(--text-muted); font-size: 0.8rem;">
+            &copy; 2026 OM Health Care. All rights reserved.
+        </div>
+    </div>
+
+    <script>
+        // Use the global script from auth.js to handle logos and auth checks
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if already logged in and redirect via global logic in auth.js if available
+            // In this case auth.js provides verifySession style logic but we can also use a simple one here
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    const email = user.email.toLowerCase().trim();
+                    if (email === ADMIN_EMAIL.toLowerCase().trim()) {
+                        window.location.href = './admin-dashboard.html';
+                    } else {
+                        window.location.href = './staff-dashboard.html';
+                    }
+                }
+            });
+        });
+    </script>
+    <script>
+        let deferredInstallPrompt = null;
+        const installBtn = document.getElementById('installAppBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            if (installBtn) installBtn.style.display = 'inline-flex';
+        });
+
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (!deferredInstallPrompt) return;
+                deferredInstallPrompt.prompt();
+                await deferredInstallPrompt.userChoice;
+                deferredInstallPrompt = null;
+                installBtn.style.display = 'none';
+            });
+        }
+
+        window.addEventListener('appinstalled', () => {
+            deferredInstallPrompt = null;
+            if (installBtn) installBtn.style.display = 'none';
+        });
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(() => console.log('SW registered'))
+          .catch(e => console.log('SW failed:', e));
+      });
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Management</title>
+    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="icon" type="image/jpeg" href="./assets/logo.jpeg"/>
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1e252c"/>
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+    <meta name="apple-mobile-web-app-title" content="OM Attendance"/>
+    <meta name="mobile-web-app-capable" content="yes"/>
+    <link rel="manifest" href="./manifest.json?v=3"/>
+    <link rel="apple-touch-icon" href="./assets/logo.jpeg"/>
+    <!-- Firebase SDK (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="js/firebase-config.js?v=3"></script>
+    <script src="js/auth.js?v=3"></script>
+    <script src="js/admin.js?v=3"></script>
+    <script src="js/report.js?v=3"></script>
+    <!-- Google Maps API -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAyt-m2girF-g_q63AVXYuQcdWw-HSdG0Y"></script>
+</head>
+<body>
+  <script>
+    // Fast synchronous guard
+    const session = JSON.parse(sessionStorage.getItem('omhc_session') || '{}');
+    if (!session.loggedIn || session.role !== 'admin') {
+      window.location.href = './admin-login.html';
+    }
+  </script>
+
+  <div id="loadingOverlay" class="loading-overlay"></div>
+    
+    <!-- Mobile Topbar -->
+    <div class="mobile-topbar" id="mobileTopbar">
+      <button class="hamburger" onclick="toggleSidebar()">
+        <span></span><span></span><span></span>
+      </button>
+      <img src="./assets/logo.jpeg" style="height:36px;border-radius:8px;" alt="Logo"/>
+      <span style="font-size:0.85rem;font-weight:600;color:#eef0f2;">OM Admin</span>
+    </div>
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <div class="main-layout">
+        <aside class="sidebar" id="sidebar">
+            <div style="text-align: center; margin-bottom: 2rem; display: flex; flex-direction: column; align-items: center;">
+                <div style="width:44px;height:44px;
+                  border-radius:10px;overflow:hidden;
+                  flex-shrink:0; margin-bottom: 1rem;">
+                  <img src="./assets/logo.jpeg"
+                       alt="OM"
+                       style="width:100%;height:100%;
+                              object-fit:cover;"
+                       onerror="this.src=LOGO_DATA"/>
+                </div>
+                <h3 style="color: var(--warning);">Admin Panel</h3>
+            </div>
+            <nav style="display: flex; flex-direction: column; gap: 0.5rem; flex: 1;">
+                <a href="#" class="nav-link active" onclick="showPane('stats')"><i>📊</i> Management Hub</a>
+                <a href="#" class="nav-link" onclick="showPane('staff')"><i>👥</i> Staff List</a>
+                <a href="#" class="nav-link" onclick="showPane('reports')"><i>📅</i> Monthly Reports</a>
+                <a href="#" class="nav-link" onclick="showPane('settings')"><i>⚙️</i> Settings</a>
+            </nav>
+            <button class="nav-link" onclick="logoutUser()" style="border: none; background: none; cursor: pointer; width: 100%; text-align: left;">
+                <i>🚪</i> Logout
+            </button>
+        </aside>
+
+        <main class="content-area">
+            <!-- Stats Hub -->
+            <div id="pane-stats" class="pane">
+                <header style="margin-bottom: 3rem;">
+                    <h1>Management Dashboard</h1>
+                    <p class="subtitle" id="statDate">Attendance for Tuesday, 10th March 2026</p>
+                </header>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">TODAY PRESENT</div>
+                        <div class="stat-value" id="statPresent">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">ABSENT</div>
+                        <div class="stat-value" id="statAbsent" style="color: var(--danger);">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">LATE ARRIVALS</div>
+                        <div class="stat-value" id="statLate" style="color: var(--warning);">0</div>
+                    </div>
+                    <div class="stat-card" id="gpsStatCard"> 
+                        <div class="stat-label">GPS STATUS</div>
+                        <div class="stat-value" id="statGpsFlagged">0</div>
+                    </div>
+                </div>
+
+                <!-- Live Tracking Map -->
+                <div class="glass-card" style="margin-top: 2rem; padding: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3>Live Staff Tracking</h3>
+                        <div class="status-badge" style="background: rgba(76, 175, 125, 0.2); color: #4caf7d; border: 1px solid #4caf7d; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;">
+                            Center: OM Health Care
+                        </div>
+                    </div>
+                    <div id="map" style="height: 400px; width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);"></div>
+                    <div style="display: flex; gap: 1.5rem; margin-top: 1rem; font-size: 0.8rem; opacity: 0.8;">
+                        <span><img src="https://maps.google.com/mapfiles/ms/icons/blue-dot.png" style="height:14px; vertical-align:middle;"> Store</span>
+                        <span><img src="https://maps.google.com/mapfiles/ms/icons/green-dot.png" style="height:14px; vertical-align:middle;"> Staff (In Range)</span>
+                        <span><img src="https://maps.google.com/mapfiles/ms/icons/red-dot.png" style="height:14px; vertical-align:middle;"> Staff (Flagged)</span>
+                    </div>
+                </div>
+
+                <div class="glass-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h3>Today's Attendance</h3>
+                        <div style="font-size: 0.8rem; opacity:0.6;">Auto-refreshing every 60s</div>
+                        <button class="btn btn-ghost" onclick="refreshTable()">Manual Refresh</button>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table id="attendanceTable">
+                            <thead>
+                                <tr>
+                                    <th>Staff Name</th>
+                                    <th>Date</th>
+                                    <th>Check IN</th>
+                                    <th>Check OUT</th>
+                                    <th>Work Hours</th>
+                                    <th>Zone</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Loading records...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staff Management -->
+            <div id="pane-staff" class="pane" style="display: none;">
+                <header style="margin-bottom: 3rem; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h1>Staff Management</h1>
+                        <p class="subtitle">Add or remove staff from the system</p>
+                    </div>
+                    <button class="btn btn-danger" onclick="debugWipeStaff()" style="background: #e74c3c; border: none; font-size: 0.8rem; padding: 0.8rem 1.2rem;">
+                        🗑️ DELETE ALL STAFF RECORDS (DEBUG)
+                    </button>
+                </header>
+
+                <div class="glass-card" style="margin-bottom: 3rem; max-width: 600px;">
+                    <h3>Register New Staff</h3>
+                    <form id="addStaffForm" style="margin-top: 1.5rem;">
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <input type="text" id="staffName" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Login Password</label>
+                            <input type="password" id="staffPass" placeholder="e.g. pass123" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Role</label>
+                            <select id="staffRole">
+                                <option value="Medical Staff">Medical Staff</option>
+                                <option value="Pharmacist">Pharmacist</option>
+                                <option value="Receptionist">Receptionist</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 1rem;">
+                            <div class="form-group" style="flex: 1;">
+                                <label>Shift Start</label>
+                                <input type="time" id="shiftStart" value="09:00">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>Shift End</label>
+                                <input type="time" id="shiftEnd" value="18:00">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Late Grace (minutes)</label>
+                            <input type="number" id="lateGrace" value="15">
+                        </div>
+                        <button type="submit" id="registerBtn" class="btn btn-primary" style="width: 100%; justify-content: center; transition: all 0.3s ease;">REGISTER STAFF</button>
+                    </form>
+                </div>
+
+                <div class="glass-card">
+                    <h3>Employee List</h3>
+                    <table id="staffTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Shift</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="staffTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Reports Pane -->
+            <div id="pane-reports" class="pane" style="display: none;">
+                <header style="margin-bottom: 3rem;">
+                    <h1>Attendance Reports</h1>
+                    <p class="subtitle">Generate and download monthly analytics</p>
+                </header>
+
+                <div class="glass-card" style="margin-bottom: 2rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; align-items: flex-end;">
+                        <div class="form-group">
+                            <label>Filter Staff</label>
+                            <select id="reportStaff">
+                                <option value="all">All Employees</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Select Month</label>
+                            <input type="month" id="reportMonth" value="${new Date().toISOString().slice(0, 7)}">
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select id="reportStatus">
+                                <option value="all">Every Status</option>
+                                <option value="Present">Present Only</option>
+                                <option value="Late">Late Only</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" onclick="generateReport()">VIEW REPORT</button>
+                    </div>
+                </div>
+
+                <div class="glass-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 id="reportTitle">Report Results</h4>
+                        <div id="downloadButtons" style="display: none; gap: 0.5rem;">
+                            <button class="btn btn-outline" onclick="exportReport('csv')">CSV 📥</button>
+                            <button class="btn btn-outline" onclick="exportReport('excel')">Excel 📊</button>
+                            <button class="btn btn-outline" onclick="window.print()">Print PDF 📄</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="reportTable" class="staff-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Name</th>
+                                    <th>Role</th>
+                                    <th>In</th>
+                                    <th>Out</th>
+                                    <th>Hours</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reportTableBody">
+                                <tr><td colspan="7" style="text-align: center; opacity: 0.5;">Select filters to generate a report</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Pane -->
+            <div id="pane-settings" class="pane" style="display: none;">
+                <header style="margin-bottom: 3rem;">
+                    <h1>System Settings</h1>
+                    <p class="subtitle">GPS Boundaries (Optimized for Reliability)</p>
+                </header>
+                <div class="glass-card" style="max-width: 600px; text-align: left; padding: 2rem;">
+                    <div style="margin-bottom: 1.5rem; border-left: 4px solid var(--warning); padding-left: 1rem;">
+                        <h4 style="margin-bottom: 0.5rem; color: var(--warning);">📍 HARDCODED SHOP LOCATION</h4>
+                        <p style="font-size: 0.9rem; line-height: 1.6; opacity: 0.8;">
+                           <strong>Shop Name:</strong> OM Health Care<br>
+                           <strong>Address:</strong> Shop No. 10/11, B Wing, Rashmi Harsh CHS, Near GCC Club, Hatkesh Udyog Nagar, Mira Road (East), Thane - 401107
+                        </p>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px;">
+                        <p style="font-size: 0.85rem; color: var(--success);">
+                            ✅ <strong>Geofence Radius:</strong> 50 meters (Strict)<br>
+                            ✅ <strong>GPS Validation:</strong> Mandatory for check-in/check-out
+                        </p>
+                    </div>
+                    <p style="margin-top: 1.5rem; font-size: 0.75rem; color: var(--text-muted); font-style: italic;">
+                        NOTE: Dynamic location setting has been disabled to prevent GPS timeout issues. Coordinates are now fixed in the core system logic.
+                    </p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        verifySession('admin');
+
+        let tableRefreshInterval = null;
+        let lastReportData = [];
+
+        // Stats listeners
+        AdminSvc.listenTodayStats(stats => {
+            document.getElementById('statPresent').textContent = stats.present;
+            document.getElementById('statWorking').textContent = stats.working;
+            document.getElementById('statLate').textContent = stats.late;
+            document.getElementById('statGpsFlagged').textContent = stats.gpsFlagged;
+        });
+
+        function formatMinutesAsText(totalMinutes) {
+            const mins = Math.max(0, parseInt(totalMinutes || 0, 10));
+            const hours = Math.floor(mins / 60);
+            const rem = mins % 60;
+            return `${hours}h ${rem}m`;
+        }
+
+        function deriveMinutesBetween(startTime, endTime) {
+            if (!startTime || !endTime) return 0;
+            const [sh, sm] = startTime.split(':').map(Number);
+            const [eh, em] = endTime.split(':').map(Number);
+            const startMins = (sh * 60) + sm;
+            const endMins = (eh * 60) + em;
+            return Math.max(0, endMins - startMins);
+        }
+
+        async function showPane(name) {
+            document.querySelectorAll('.pane').forEach(p => p.style.display = 'none');
+            const pane = document.getElementById('pane-' + name);
+            if (pane) pane.style.display = 'block';
+            
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            if (event) event.currentTarget.classList.add('active');
+            
+            if (name === 'staff') loadStaffList();
+            if (name === 'stats') {
+                refreshTable();
+                // Initialize Map if not already done
+                if (!AdminSvc.map) {
+                    setTimeout(() => AdminSvc.initMap('map'), 100);
+                }
+                if (!tableRefreshInterval) tableRefreshInterval = setInterval(refreshTable, 60000);
+            } else {
+                if (tableRefreshInterval) { clearInterval(tableRefreshInterval); tableRefreshInterval = null; }
+            }
+            if (name === 'reports') {
+                const now = new Date();
+                document.getElementById('reportMonth').value = now.toISOString().slice(0, 7);
+                loadStaffOptions();
+            }
+        }
+
+        let totalStaffCount = 0;
+
+        function initRealTimeSync() {
+            // Listen to total staff count
+            AdminSvc.listenStaffCount(count => {
+                totalStaffCount = count;
+                updateStatsUI();
+            });
+
+            // Listen to today's records
+            AdminSvc.listenTodayStats((stats, records) => {
+                // Update stats
+                document.getElementById('statPresent').textContent = stats.present;
+                document.getElementById('statLate').textContent = stats.late;
+                document.getElementById('statGpsFlagged').textContent = stats.gpsFlagged;
+                
+                // Track global stats for Absent calculation
+                window.todayStats = stats;
+                updateStatsUI();
+
+                // Build Table
+                const tbody = document.querySelector('#attendanceTable tbody');
+                if (records.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No records yet</td></tr>';
+                } else {
+                    records.sort((a,b) => (b.checkIn || '').localeCompare(a.checkIn || ''));
+                    tbody.innerHTML = records.map(r => {
+                        const statusClass = (r.status === 'Late' || r.status === 'Absent') ? 'status-absent' : 'status-present';
+                        const zoneLabel = r.status === 'Absent' ? '—' : (r.gpsFlagged ? '🔴 Out' : '🟢 In');
+                        return `
+                            <tr>
+                                <td>${r.staffName}</td>
+                                <td>${r.date}</td>
+                                <td>${r.checkIn || '--:--'}</td>
+                                <td>${r.checkOut || '--:--'}</td>
+                                <td>${AdminSvc.calcWorkingHours(r.checkIn, r.checkOut, r.date)}</td>
+                                <td style="font-weight:600;">${zoneLabel}</td>
+                                <td><span class="status-badge ${statusClass}">${r.status || 'Present'}</span></td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+                AdminSvc.updateMapMarkers(records);
+            });
+        }
+
+        function updateStatsUI() {
+            const present = window.todayStats ? window.todayStats.present : 0;
+            const absent = Math.max(0, totalStaffCount - present);
+            document.getElementById('statAbsent').textContent = absent;
+        }
+
+        function refreshTable() {
+            // No-op or manual reload if desired, since it's real-time now
+            location.reload();
+        }
+
+        async function loadStaffOptions() {
+            const snap = await db.collection('staff').get();
+            const sel = document.getElementById('reportStaff');
+            const currentVal = sel.value;
+            sel.innerHTML = '<option value="all">All Employees</option>';
+            snap.forEach(doc => {
+                const d = doc.data();
+                sel.innerHTML += `<option value="${doc.id}">${d.name}</option>`;
+            });
+            sel.value = currentVal;
+        }
+
+        async function generateReport() {
+            const staffId = document.getElementById('reportStaff').value;
+            const monthStr = document.getElementById('reportMonth').value; // YYYY-MM
+            const statusFilter = document.getElementById('reportStatus').value;
+
+            if (!monthStr) return alert("Please select a month");
+
+            const [year, month] = monthStr.split('-').map(Number);
+            const startDate = `${monthStr}-01`;
+            const endDate = `${monthStr}-31`; // Firestore 'where' range covers it
+
+            try {
+                let q = db.collection('attendance')
+                    .where('date', '>=', startDate)
+                    .where('date', '<=', endDate);
+
+                const snap = await q.get();
+                let records = snap.docs.map(d => d.data());
+
+                if (staffId !== 'all') {
+                    records = records.filter(r => r.staffDocId === staffId);
+                }
+
+                if (statusFilter !== 'all') {
+                    records = records.filter(r => r.status === statusFilter);
+                }
+
+                records.sort((a,b) => b.date.localeCompare(a.date));
+                lastReportData = records;
+
+                const tbody = document.getElementById('reportTableBody');
+                if (records.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No records found for this period</td></tr>';
+                    document.getElementById('downloadButtons').style.display = 'none';
+                    return;
+                }
+
+                document.getElementById('downloadButtons').style.display = 'flex';
+                tbody.innerHTML = records.map(r => `
+                    <tr>
+                        <td>${r.date}</td>
+                        <td>${r.staffName}</td>
+                        <td>${r.role || 'Staff'}</td>
+                        <td>${r.checkIn || '--:--'}</td>
+                        <td>${r.checkOut || '--:--'}</td>
+                        <td>${AdminSvc.calcWorkingHours(r.checkIn, r.checkOut, r.date)}</td>
+                        <td><span class="status-badge ${r.status === 'Late' ? 'status-absent' : 'status-present'}">${r.status}</span></td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                console.error("Report generation error:", e);
+                alert("Failed to generate report: " + e.message);
+            }
+        }
+
+        function exportReport(format) {
+            if (lastReportData.length === 0) return;
+            const filename = `OMHC_Report_${document.getElementById('reportMonth').value}`;
+            if (format === 'csv') {
+                ReportSvc.downloadCSV(lastReportData, filename);
+            } else {
+                ReportSvc.downloadExcel(lastReportData, filename);
+            }
+        }
+        
+        // ... Load Staff List & other functions remain from before ...
+
+        // Staff List Management - Step 2: Fix Employee List to show ALL records
+        async function loadStaffList() {
+            try {
+                const snap = await db.collection('staff').orderBy('createdAt', 'desc').get();
+                console.log('Total staff found:', snap.size); // DEBUG LOG
+                
+                const tbody = document.getElementById('staffTableBody');
+                tbody.innerHTML = '';
+                
+                if (snap.empty) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:2rem;opacity:0.5;">No staff members found</td></tr>';
+                    return;
+                }
+                
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    console.log('Staff record:', doc.id, d); // DEBUG LOG
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${d.name || '—'}</td>
+                        <td>${d.role || '—'}</td>
+                        <td>${d.shiftStart || '—'} → ${d.shiftEnd || '—'}</td>
+                        <td>
+                            <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.7rem;" onclick="removeStaff('${doc.id}')">
+                                DELETE
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                console.error('Error loading staff list:', err);
+            }
+        }
+
+        // Step 1: Wipe All Staff records (Debug)
+        async function debugWipeStaff() {
+            if (!confirm('🚨 CRITICAL: This will delete ALL staff members. Continue?')) return;
+            try {
+                const snap = await db.collection('staff').get();
+                const batch = db.batch();
+                snap.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                alert('All staff records deleted from Firestore');
+                location.reload();
+            } catch (err) {
+                alert('Wipe failed: ' + err.message);
+            }
+        }
+
+        document.getElementById('addStaffForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('registerBtn');
+            const form = e.target;
+            
+            try {
+                const name = document.getElementById('staffName').value;
+                const password = document.getElementById('staffPass').value;
+                const role = document.getElementById('staffRole').value;
+                const shiftStart = document.getElementById('shiftStart').value;
+                const shiftEnd = document.getElementById('shiftEnd').value;
+                const lateGrace = document.getElementById('lateGrace').value;
+                
+                btn.disabled = true;
+                btn.textContent = 'SAVING...';
+
+                // Set a 10-second timeout
+                const savePromise = AdminSvc.addStaff(name, password, role, shiftStart, shiftEnd, lateGrace);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Firebase timeout — check internet connection and Firestore rules')), 10000)
+                );
+                
+                await Promise.race([savePromise, timeoutPromise]);
+                
+                // Step 4: Visual Success Confirmation
+                btn.textContent = '✅ STAFF ADDED SUCCESSFULLY!';
+                btn.style.background = '#4caf7d';
+                
+                setTimeout(() => {
+                    form.reset();
+                    btn.textContent = 'REGISTER STAFF';
+                    btn.style.background = '';
+                    btn.disabled = false;
+                    loadStaffList();
+                }, 2000);
+
+            } catch (err) { 
+                console.error('❌ SAVE ERROR:', err);
+                btn.disabled = false;
+                btn.textContent = 'REGISTER STAFF';
+                btn.style.background = '';
+                alert('❌ Failed to save staff.\n\nReason: ' + err.message + 
+                      '\n\nCheck:\n1. Firestore Rules (must allow write)\n2. Internet connection\n3. Firebase config is correct');
+            }
+        });
+
+        async function removeStaff(id) {
+            if (!confirm('Are you sure you want to remove this staff member?')) return;
+            await AdminSvc.deleteStaff(id);
+            loadStaffList();
+        }
+
+        async function downloadReport() {
+            const today = getCurrentDate();
+            const records = await AdminSvc.loadAttendanceRange(today, today);
+            ReportSvc.downloadCSV(records, `Attendance_Report_${today}`);
+        }
+
+        document.getElementById('statDate').textContent = "Attendance for " + new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        initRealTimeSync();
+
+        // Sidebar Toggle for Mobile
+        function toggleSidebar() {
+          document.getElementById('sidebar').classList.toggle('open');
+          document.getElementById('sidebarOverlay').classList.toggle('show');
+        }
+
+        // SW Registration
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {            navigator.serviceWorker.register('./sw.js')
+              .then(() => console.log('SW registered'))
+              .catch(e => console.log('SW failed:', e));
+          });
+        }
+    </script>
+</body>
+</html>

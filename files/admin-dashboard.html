@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — OM Health Care</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner-lg"></div>
+    <span>Loading dashboard…</span>
+  </div>
+
+  <!-- Mobile Header -->
+  <div class="mobile-header" id="mobileHeader" style="display:none;">
+    <button class="hamburger" onclick="toggleSidebar()">
+      <span></span><span></span><span></span>
+    </button>
+    <span style="font-weight:700; color:var(--navy); font-size:0.95rem;">OM Admin</span>
+    <button onclick="logout()" class="btn btn-secondary btn-sm">Logout</button>
+  </div>
+
+  <div class="dashboard">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo" id="sidebarLogo">🏥</div>
+        <div class="sidebar-title">OM Health Care <small>Admin Panel</small></div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-label">Overview</div>
+          <div class="nav-item active" onclick="showPage('dashboard', this)">
+            <span class="icon">📊</span> Dashboard
+          </div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Attendance</div>
+          <div class="nav-item" onclick="showPage('attendance', this)">
+            <span class="icon">📋</span> View Attendance
+          </div>
+          <div class="nav-item" onclick="showPage('reports', this)">
+            <span class="icon">📥</span> Download Reports
+          </div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Staff</div>
+          <div class="nav-item" onclick="showPage('staff', this)">
+            <span class="icon">👥</span> Manage Staff
+          </div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Settings</div>
+          <div class="nav-item" onclick="showPage('settings', this)">
+            <span class="icon">⚙️</span> Settings
+          </div>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="sidebar-avatar" style="background:linear-gradient(135deg,var(--gold),#e8b84b);">A</div>
+          <div class="sidebar-user-info">
+            <div class="sidebar-user-name">Admin</div>
+            <div class="sidebar-user-role">Store Owner</div>
+          </div>
+        </div>
+        <button onclick="logout()" class="btn btn-secondary btn-sm" style="width:100%;">🚪 Logout</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+
+      <!-- ─── Dashboard Page ─── -->
+      <div id="page-dashboard">
+        <div class="page-header">
+          <div>
+            <h1>Dashboard</h1>
+            <p id="dashDate">Today's overview</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-primary" onclick="showPage('staff', document.querySelector('.nav-item:nth-child(3)'))">+ Add Staff</button>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card navy">
+            <div class="stat-icon">👥</div>
+            <div class="stat-value" id="totalStaff">—</div>
+            <div class="stat-label">Total Staff</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value" id="todayPresent">—</div>
+            <div class="stat-label">Present Today</div>
+          </div>
+          <div class="stat-card amber">
+            <div class="stat-icon">⏰</div>
+            <div class="stat-value" id="todayLate">—</div>
+            <div class="stat-label">Late Today</div>
+          </div>
+          <div class="stat-card red">
+            <div class="stat-icon">❌</div>
+            <div class="stat-value" id="todayAbsent">—</div>
+            <div class="stat-label">Not Marked</div>
+          </div>
+        </div>
+
+        <!-- Today's Attendance -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Today's Attendance</h3>
+            <span id="todayDateBadge" class="badge badge-blue">—</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Staff</th><th>Time</th><th>Status</th></tr>
+              </thead>
+              <tbody id="todayTable">
+                <tr><td colspan="3"><div class="empty-state"><div class="empty-icon">📋</div><p>Loading…</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Attendance Page ─── -->
+      <div id="page-attendance" style="display:none;">
+        <div class="page-header">
+          <div><h1>Attendance Records</h1><p>Filter and view all staff attendance</p></div>
+          <div class="page-actions">
+            <button class="btn btn-gold" onclick="showPage('reports', null)">📥 Download</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="filters">
+            <input type="date" id="filterDate" />
+            <input type="month" id="filterMonth" />
+            <select id="filterStaff"><option value="">All Staff</option></select>
+            <select id="filterStatus">
+              <option value="">All Status</option>
+              <option>Present</option><option>Late</option><option>Absent</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="loadAttendanceTable()">Filter</button>
+            <button class="btn btn-secondary btn-sm" onclick="clearFilters()">Clear</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Staff Name</th><th>Staff ID</th><th>Date</th><th>Time</th><th>Status</th></tr>
+              </thead>
+              <tbody id="attendanceTable">
+                <tr><td colspan="5"><div class="empty-state"><div class="empty-icon">📋</div><p>Loading…</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Reports Page ─── -->
+      <div id="page-reports" style="display:none;">
+        <div class="page-header">
+          <div><h1>Download Reports</h1><p>Export attendance data in CSV or Excel format</p></div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1.5rem;">
+          <!-- Daily -->
+          <div class="card">
+            <div class="card-header"><h3>📅 Daily Report</h3></div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Select Date</label>
+                <input type="date" id="rptDaily" class="form-group input" style="width:100%; padding:0.8rem 1rem; border:1.5px solid var(--gray-200); border-radius:10px; font-size:0.95rem; background:var(--gray-50); outline:none; font-family:inherit;" />
+              </div>
+              <div style="display:flex;gap:0.6rem;margin-top:1rem;">
+                <button class="btn btn-primary btn-sm" onclick="downloadReport('daily','csv')">📄 CSV</button>
+                <button class="btn btn-gold btn-sm" onclick="downloadReport('daily','excel')">📊 Excel</button>
+              </div>
+            </div>
+          </div>
+          <!-- Weekly -->
+          <div class="card">
+            <div class="card-header"><h3>📆 Weekly Report</h3></div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Week Starting Date</label>
+                <input type="date" id="rptWeekStart" style="width:100%; padding:0.8rem 1rem; border:1.5px solid var(--gray-200); border-radius:10px; font-size:0.95rem; background:var(--gray-50); outline:none; font-family:inherit;" />
+              </div>
+              <div style="display:flex;gap:0.6rem;margin-top:1rem;">
+                <button class="btn btn-primary btn-sm" onclick="downloadReport('weekly','csv')">📄 CSV</button>
+                <button class="btn btn-gold btn-sm" onclick="downloadReport('weekly','excel')">📊 Excel</button>
+              </div>
+            </div>
+          </div>
+          <!-- Monthly -->
+          <div class="card">
+            <div class="card-header"><h3>🗓️ Monthly Report</h3></div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Select Month</label>
+                <input type="month" id="rptMonth" style="width:100%; padding:0.8rem 1rem; border:1.5px solid var(--gray-200); border-radius:10px; font-size:0.95rem; background:var(--gray-50); outline:none; font-family:inherit;" />
+              </div>
+              <div style="display:flex;gap:0.6rem;margin-top:1rem;">
+                <button class="btn btn-primary btn-sm" onclick="downloadReport('monthly','csv')">📄 CSV</button>
+                <button class="btn btn-gold btn-sm" onclick="downloadReport('monthly','excel')">📊 Excel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Staff Page ─── -->
+      <div id="page-staff" style="display:none;">
+        <div class="page-header">
+          <div><h1>Manage Staff</h1><p>Add, edit or remove staff members</p></div>
+          <div class="page-actions">
+            <button class="btn btn-primary" onclick="openStaffModal()">+ Add Staff</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Staff ID</th><th>Phone</th><th>Role</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="staffTable">
+                <tr><td colspan="5"><div class="empty-state"><div class="empty-icon">👥</div><p>Loading…</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Settings Page ─── -->
+      <div id="page-settings" style="display:none;">
+        <div class="page-header">
+          <div><h1>Settings</h1><p>Manage system preferences</p></div>
+        </div>
+        <div class="card" style="max-width:500px;">
+          <div class="card-header"><h3>Store Logo</h3></div>
+          <div class="card-body">
+            <p style="font-size:0.88rem;color:var(--gray-400);margin-bottom:1rem;">Upload your store logo to show on all pages.</p>
+            <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+              <div id="logoPreview" style="width:70px;height:70px;border-radius:14px;background:var(--green-xs);display:flex;align-items:center;justify-content:center;font-size:2rem;overflow:hidden;border:2px solid var(--gray-200);">🏥</div>
+              <div>
+                <input type="file" id="logoFile" accept="image/*" onchange="uploadLogo()" style="font-size:0.85rem;" />
+                <p style="font-size:0.78rem;color:var(--gray-400);margin-top:0.4rem;">PNG, JPG (max 2MB)</p>
+              </div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="removeLogo()">Remove Logo</button>
+          </div>
+        </div>
+        <div class="card" style="max-width:500px;">
+          <div class="card-header"><h3>Attendance Timings</h3></div>
+          <div class="card-body">
+            <div style="display:grid;gap:0.8rem;">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0.8rem;background:var(--green-xs);border-radius:10px;">
+                <span style="font-size:0.88rem;font-weight:600;color:var(--green);">✅ Present</span>
+                <span style="font-size:0.85rem;color:var(--gray-600);">Before 10:00 AM</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0.8rem;background:#fef3c7;border-radius:10px;">
+                <span style="font-size:0.88rem;font-weight:600;color:var(--amber);">⏰ Late</span>
+                <span style="font-size:0.85rem;color:var(--gray-600);">10:00 AM – 10:30 AM</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0.8rem;background:#fee2e2;border-radius:10px;">
+                <span style="font-size:0.88rem;font-weight:600;color:var(--red);">❌ Absent</span>
+                <span style="font-size:0.85rem;color:var(--gray-600);">After 10:30 AM</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Add/Edit Staff Modal -->
+  <div class="modal-overlay" id="staffModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Add Staff</h3>
+        <button class="modal-close" onclick="closeStaffModal()">✕</button>
+      </div>
+      <div class="form-group">
+        <label>Full Name *</label>
+        <input type="text" id="fName" placeholder="e.g. Rahul Sharma" />
+      </div>
+      <div class="form-group">
+        <label>Staff ID *</label>
+        <input type="text" id="fStaffId" placeholder="e.g. OMHC001" />
+      </div>
+      <div class="form-group">
+        <label>Phone Number</label>
+        <input type="tel" id="fPhone" placeholder="e.g. 9876543210" />
+      </div>
+      <div class="form-group">
+        <label>Role</label>
+        <input type="text" id="fRole" placeholder="e.g. Sales, Pharmacist" />
+      </div>
+      <div class="form-group" id="passwordGroup">
+        <label>Password *</label>
+        <input type="password" id="fPass" placeholder="Staff login password" />
+      </div>
+      <div id="modalError" class="auth-error"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeStaffModal()">Cancel</button>
+        <button class="btn btn-primary" id="modalSaveBtn" onclick="saveStaff()">Save Staff</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Remove Staff</h3>
+        <button class="modal-close" onclick="closeDeleteModal()">✕</button>
+      </div>
+      <p style="font-size:0.9rem;color:var(--gray-600);">Are you sure you want to remove <strong id="deleteStaffName"></strong>? Their attendance records will be kept.</p>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmDelete()">Remove Staff</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/admin.js"></script>
+  <script>
+    // Load logo
+    const logo = localStorage.getItem('omhc_logo');
+    if (logo) {
+      document.getElementById('sidebarLogo').innerHTML = `<img src="${logo}" alt="logo">`;
+      document.getElementById('logoPreview').innerHTML = `<img src="${logo}" alt="logo" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+    }
+
+    auth.onAuthStateChanged(user => {
+      if (!user) { window.location.href = 'admin-login.html'; return; }
+      if (user.email !== ADMIN_EMAIL) { window.location.href = 'staff-dashboard.html'; return; }
+      initDashboard();
+    });
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('open');
+    }
+    window.addEventListener('resize', () => {
+      if (window.innerWidth < 900) document.getElementById('mobileHeader').style.display = 'flex';
+      else document.getElementById('mobileHeader').style.display = 'none';
+    });
+    if (window.innerWidth < 900) document.getElementById('mobileHeader').style.display = 'flex';
+
+    function showToast(msg, type='success') {
+      const c = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(() => t.remove(), 3500);
+    }
+  </script>
+</body>
+</html>

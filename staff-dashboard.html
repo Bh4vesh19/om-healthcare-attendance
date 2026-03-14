@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Staff Portal</title>
+    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="icon" type="image/jpeg" href="./assets/logo.jpeg"/>
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1e252c"/>
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+    <meta name="apple-mobile-web-app-title" content="OM Attendance"/>
+    <meta name="mobile-web-app-capable" content="yes"/>
+    <link rel="manifest" href="./manifest.json?v=3"/>
+    <link rel="apple-touch-icon" href="./assets/logo.jpeg"/>
+    <!-- Firebase SDK (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="js/firebase-config.js?v=3"></script>
+    <script src="js/auth.js?v=3"></script>
+    <script src="js/gps.js?v=3"></script>
+    <script src="js/attendance.js?v=3"></script>
+</head>
+<body>
+    <!-- Mobile Topbar -->
+    <div class="mobile-topbar" id="mobileTopbar">
+      <button class="hamburger" onclick="toggleSidebar()">
+        <span></span><span></span><span></span>
+      </button>
+      <img src="./assets/logo.jpeg" style="height:36px;border-radius:8px;" alt="Logo"/>
+      <span style="font-size:0.85rem;font-weight:600;color:#eef0f2;">OM Staff</span>
+    </div>
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <div class="main-layout">
+        <aside class="sidebar" id="sidebar">
+            <div style="text-align: center; margin-bottom: 2rem; display: flex; flex-direction: column; align-items: center;">
+                <div style="width:44px;height:44px;
+                  border-radius:10px;overflow:hidden;
+                  flex-shrink:0; margin-bottom: 1rem;">
+                  <img src="./assets/logo.jpeg"
+                       alt="OM"
+                       style="width:100%;height:100%;
+                              object-fit:cover;"
+                       onerror="this.src=LOGO_DATA"/>
+                </div>
+                <h3 style="color: var(--primary);">OM HEALTH</h3>
+            </div>
+            <nav style="display: flex; flex-direction: column; gap: 0.5rem; flex: 1;">
+                <a href="#" class="nav-link active" onclick="showPane('dashboard', this)"><i>🏠</i> Dashboard</a>
+                <a href="#" class="nav-link" onclick="showPane('history', this); loadMyHistory()"><i>📋</i> My History</a>
+            </nav>
+            <button class="nav-link" onclick="logoutUser()" style="border: none; background: none; cursor: pointer; width: 100%; text-align: left;">
+                <i>🚪</i> Logout
+            </button>
+        </aside>
+
+        <main class="content-area">
+            <!-- Dashboard Pane -->
+            <div id="pane-dashboard" class="pane">
+                <header style="margin-bottom: 3rem;">
+                    <h1 id="welcomeUser">Welcome, Staff</h1>
+                    <p class="subtitle" id="displayDate">Today is Tuesday, 10th March 2026</p>
+                </header>
+
+                <div class="glass-card animate" style="margin-bottom: 2rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem;">
+                        <div>
+                            <h4 style="color: var(--text-muted); margin-bottom: 0.5rem;">Shift Details</h4>
+                            <div id="statusPreview" style="font-weight: 500; color: var(--text-muted);">
+                               Shift: <span id="shiftTimeText">--:-- to --:--</span> — Not checked in yet
+                            </div>
+                            <div id="statusBadgeContainer" style="display: none; margin-top: 0.5rem;">
+                               <div id="statusBadge" class="status-badge" style="display: inline-block;">Checking...</div>
+                            </div>
+                        </div>
+
+                        <div id="actionArea" class="action-buttons">
+                            <button id="btnIn" class="btn btn-success" onclick="handleIn()">CHECK IN</button>
+                            <button id="btnOut" class="btn btn-danger" onclick="handleOut()" disabled>CHECK OUT</button>
+                            <button id="btnAbsent" class="btn btn-ghost" onclick="handleAbsent()">MARK ABSENT</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-grid animate">
+                    <div class="stat-card">
+                        <div class="stat-label">CHECK IN</div>
+                        <div class="stat-value" id="dispCheckIn">--:--</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">CHECK OUT</div>
+                        <div class="stat-value" id="dispCheckOut">--:--</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">WORKING HOURS</div>
+                        <div class="stat-value" id="dispWkHours">0.0h</div>
+                    </div>
+                </div>
+
+                <!-- GPS Status Hidden for now as per Fix 5 -->
+                <!-- GPS Status Indicator -->
+                <div id="locationInfo" style="margin-top: 1rem; text-align: left;">
+                    <span style="font-size: 0.8rem; opacity: 0.6; margin-right: 0.5rem;">SHOP ZONE:</span>
+                    <div id="zoneBadge" class="status-badge" style="display: inline-block; background: var(--primary); color: white;">
+                        📍 Checking...
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Pane -->
+            <div id="pane-history" class="pane" style="display: none;">
+                <header style="margin-bottom: 2rem;">
+                    <h1>My Attendance History</h1>
+                    <p class="subtitle">Complete record of your check-ins</p>
+                </header>
+
+                <div class="stats-grid animate" style="margin-bottom: 2rem;">
+                    <div class="stat-card">
+                        <div class="stat-label">TOTAL DAYS</div>
+                        <div class="stat-value" id="histTotal">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">PRESENT</div>
+                        <div class="stat-value" id="histPresent" style="color: var(--success);">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">LATE</div>
+                        <div class="stat-value" id="histLate" style="color: var(--warning);">0</div>
+                    </div>
+                </div>
+
+                <div class="glass-card animate">
+                    <div class="table-container">
+                        <table class="staff-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Check In</th>
+                                    <th>Check Out</th>
+                                    <th>Hours</th>
+                                    <th>Status</th>
+                                    <th>Note</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody">
+                                <tr><td colspan="6" style="text-align:center;">Loading history...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+       <script>
+        // Synchronous Session Guard
+        const session = JSON.parse(sessionStorage.getItem('staffSession') || '{}');
+        if (!session.loggedIn || session.role !== 'staff') {
+            window.location.href = './staff-login.html';
+        }
+
+        let todayRecord = null;
+        let gpsInterval = null;
+        let workTimerInterval = null;
+        let shiftWindowInterval = null;
+
+        function showPane(paneId, linkEl) {
+            document.querySelectorAll('.pane').forEach(p => p.style.display = 'none');
+            document.getElementById('pane-' + paneId).style.display = 'block';
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            linkEl.classList.add('active');
+        }
+
+        // Initialize UI with session data
+        document.getElementById('welcomeUser').textContent = `Welcome, ${session.name}!`;
+        document.getElementById('shiftTimeText').textContent = `${session.shiftStart} to ${session.shiftEnd}`;
+
+        // Start listening for today's attendance record
+        AttendanceSvc.getTodayRecord(session.docId, record => {
+            updateUI(record);
+        });
+
+        function updateShiftWindowMessage(previewEl) {
+            const windowState = AttendanceSvc.getShiftWindowStatus(session);
+            if (windowState.reason === 'shift-ended') {
+                previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="color: var(--danger);">Your shift has already ended.</span>`;
+                return { canCheckIn: false, ended: true };
+            }
+            if (windowState.reason === 'before-shift') {
+                previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="opacity:0.8;">Check-in allowed only during shift time</span>`;
+                return { canCheckIn: false, ended: false };
+            }
+            previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="opacity:0.7;">Ready for check-in</span>`;
+            return { canCheckIn: true, ended: false };
+        }
+
+        function updateUI(record) {
+            todayRecord = record;
+            const btnIn = document.getElementById('btnIn');
+            const btnOut = document.getElementById('btnOut');
+            const btnAbsent = document.getElementById('btnAbsent');
+            const statusBadgeContainer = document.getElementById('statusBadgeContainer');
+            const badge = document.getElementById('statusBadge');
+            const preview = document.getElementById('statusPreview');
+
+            if (!record) {
+                const shiftState = updateShiftWindowMessage(preview);
+                statusBadgeContainer.style.display = 'none';
+                btnIn.disabled = !shiftState.canCheckIn;
+                btnIn.textContent = "CHECK IN";
+                btnOut.disabled = true;
+                btnOut.textContent = "CHECK OUT";
+                btnAbsent.style.display = 'inline-flex';
+                btnAbsent.disabled = false;
+                btnAbsent.textContent = "MARK ABSENT";
+                document.getElementById('dispCheckIn').textContent = "--:--";
+                document.getElementById('dispCheckOut').textContent = "--:--";
+                document.getElementById('dispWkHours').textContent = "0.0h";
+                if (workTimerInterval) clearInterval(workTimerInterval);
+                stopGpsTracking();
+            } else {
+                statusBadgeContainer.style.display = 'block';
+                btnAbsent.style.display = 'none';
+                document.getElementById('dispCheckIn').textContent = record.checkIn || "--:--";
+                badge.textContent = record.status || "Present";
+                badge.className = (record.status === 'Late' || record.status === 'Absent') ? "status-badge status-absent" : "status-badge status-present";
+                preview.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd}`;
+
+                if (record.status === 'Absent') {
+                    badge.textContent = "Absent";
+                    badge.className = "status-badge status-absent";
+                    btnIn.disabled = true;
+                    btnIn.textContent = "ABSENT MARKED";
+                    btnOut.disabled = true;
+                    btnOut.textContent = "CHECK OUT";
+                    document.getElementById('dispCheckOut').textContent = "--:--";
+                    document.getElementById('dispWkHours').textContent = "0.0h";
+                    if (workTimerInterval) clearInterval(workTimerInterval);
+                    stopGpsTracking();
+                    return;
+                }
+                
+                if (record.checkOut) {
+                    badge.textContent = "Shift Completed";
+                    badge.className = "status-badge status-present";
+                    btnIn.disabled = true;
+                    btnIn.textContent = "CHECK IN";
+                    btnOut.disabled = true;
+                    btnOut.textContent = "CHECK OUT";
+                    document.getElementById('dispCheckOut').textContent = record.checkOut;
+                    document.getElementById('dispWkHours').textContent = (record.totalHours || 0) + "h (Complete)";
+                    if (workTimerInterval) clearInterval(workTimerInterval);
+                    stopGpsTracking();
+                } else {
+                    btnIn.disabled = true;
+                    btnIn.textContent = "CHECK IN";
+                    btnOut.disabled = false;
+                    btnOut.textContent = "CHECK OUT";
+                    startLiveWorkTimer(record.checkIn);
+                    startGpsTracking();
+                }
+            }
+        }
+
+        function startLiveWorkTimer(checkInTimeStr) {
+            if (workTimerInterval) clearInterval(workTimerInterval);
+            const el = document.getElementById('dispWkHours');
+            function update() {
+                el.textContent = calcWorkingHoursLive(checkInTimeStr) + ' (Active)';
+            }
+            update();
+            workTimerInterval = setInterval(update, 60000);
+        }
+
+        async function handleIn() {
+            const btn = document.getElementById('btnIn');
+            btn.textContent = "SAVING...";
+            btn.disabled = true;
+
+            try {
+                // Fix 4: Duplicate check
+                const alreadyIn = await AttendanceSvc.checkAlreadyCheckedIn(session.docId);
+                if (alreadyIn) {
+                    alert('You already checked in today');
+                    btn.textContent = "CHECK IN";
+                    btn.disabled = false;
+                    return;
+                }
+                await GPS.verifyWithinRange(ALLOWED_RADIUS_METERS);
+                await AttendanceSvc.markIn(session);
+                alert("✓ Check-in recorded");
+            } catch (e) {
+                console.error("Check-in failed:", e.message);
+                btn.textContent = "CHECK IN";
+                btn.disabled = false;
+                alert("Save failed: " + e.message);
+            }
+        }
+
+        async function handleOut() {
+            if (!confirm("Are you sure you want to clock out for today?")) return;
+            const btn = document.getElementById('btnOut');
+            btn.textContent = "SAVING...";
+            btn.disabled = true;
+            try {
+                await GPS.verifyWithinRange(ALLOWED_RADIUS_METERS);
+                await AttendanceSvc.markOut(session);
+                alert("✓ Check-out recorded");
+            } catch (e) {
+                console.error("Check-out failed:", e.message);
+                btn.textContent = "CHECK OUT";
+                btn.disabled = false;
+                alert("Check-out failed: " + e.message);
+            }
+        }
+
+        async function handleAbsent() {
+            if (!confirm("Mark yourself absent for today?")) return;
+            const btn = document.getElementById('btnAbsent');
+            btn.textContent = "SAVING...";
+            btn.disabled = true;
+
+            try {
+                await AttendanceSvc.markAbsent(session);
+                alert("✓ Absent marked");
+            } catch (e) {
+                console.error("Absent mark failed:", e.message);
+                btn.textContent = "MARK ABSENT";
+                btn.disabled = false;
+                alert("Absent mark failed: " + e.message);
+            }
+        }
+
+        async function loadMyHistory() {
+            try {
+                const snap = await db.collection('attendance')
+                    .where('staffDocId', '==', session.docId)
+                    .get();
+
+                const records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                records.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+                const present = records.filter(r => r.status === 'Present').length;
+                const late    = records.filter(r => r.status === 'Late').length;
+                
+                document.getElementById('histPresent').textContent = present;
+                document.getElementById('histLate').textContent = late;
+                document.getElementById('histTotal').textContent = records.length;
+
+                const tbody = document.getElementById('historyTableBody');
+                if (records.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No records found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = records.map(r => `
+                    <tr>
+                        <td>${formatDateDisplay(r.date)}</td>
+                        <td>${r.checkIn || '--:--'}</td>
+                        <td>${r.checkOut || '--:--'}</td>
+                        <td>${calcTotalHoursDisplay(r.checkIn, r.checkOut, r.totalMinutes)}</td>
+                        <td><span class="status-badge ${r.status === 'Late' ? 'status-absent' : 'status-present'}">${r.status || 'Present'}</span></td>
+                        <td>${r.lateByMins > 0 ? r.lateByMins + 'm late' : 'On time'}</td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                console.error("History load error:", e);
+                document.getElementById('historyTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:red;">Error loading history</td></tr>';
+            }
+        }
+
+        function formatDateDisplay(dateStr) {
+            if (!dateStr) return '—';
+            const d = new Date(dateStr + 'T00:00:00');
+            return d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
+        }
+
+        function calcTotalHoursDisplay(checkIn, checkOut, totalMins) {
+            if (totalMins && totalMins > 0) return (totalMins / 60).toFixed(1) + 'h';
+            if (checkIn && checkOut) {
+                const [ih, im] = checkIn.split(':').map(Number);
+                const [oh, om] = checkOut.split(':').map(Number);
+                const mins = (oh * 60 + om) - (ih * 60 + im);
+                return (Math.max(0, mins) / 60).toFixed(1) + 'h';
+            }
+            return '—';
+        }
+
+        function startGpsTracking() {
+            const updateZoneBadge = (res) => {
+                const zoneBadge = document.getElementById('zoneBadge');
+                if (zoneBadge) {
+                    zoneBadge.style.background = res.isWithinRange ? "var(--success)" : "var(--danger)";
+                    zoneBadge.textContent = res.isWithinRange ? "🟢 In" : "🔴 Out";
+                }
+            };
+            if (!gpsInterval) {
+                gpsInterval = setInterval(() => {
+                    checkStaffLocation(async (res) => {
+                        updateZoneBadge(res);
+                        if (todayRecord && !todayRecord.checkOut && todayRecord.checkIn && todayRecord.status !== 'Absent') {
+                           const today = getCurrentDate();
+                           const docId = `${session.docId}-${today}`;
+                           await db.collection('attendance').doc(docId).update({
+                               gpsFlagged: !res.isWithinRange || !!res.error,
+                               gpsNote: res.error
+                                 ? `GPS verification failed: ${res.error}`
+                                 : (res.isWithinRange
+                                    ? `Within ${res.distance}m`
+                                    : `Out of range: ${res.distance}m`),
+                               latitude: res.coords ? res.coords.lat : null,
+                               longitude: res.coords ? res.coords.lon : null,
+                               totalSecondsInZone: res.isWithinRange ? firebase.firestore.FieldValue.increment(60) : firebase.firestore.FieldValue.increment(0),
+                               lastGpsCheck: firebase.firestore.FieldValue.serverTimestamp()
+                           }).catch(e => console.error("Heartbeat fail:", e));
+                        }
+                    });
+                }, 60000);
+            }
+            checkStaffLocation(() => {});
+        }
+
+        function stopGpsTracking() {
+            if (gpsInterval) { clearInterval(gpsInterval); gpsInterval = null; }
+        }
+
+        if (!shiftWindowInterval) {
+            shiftWindowInterval = setInterval(() => {
+                if (!todayRecord) updateUI(null);
+            }, 60000);
+        }
+
+        document.getElementById('displayDate').textContent = "Today is " + new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+        // Sidebar Toggle for Mobile
+        function toggleSidebar() {
+          document.getElementById('sidebar').classList.toggle('open');
+          document.getElementById('sidebarOverlay').classList.toggle('show');
+        }
+
+        // SW Registration
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {            navigator.serviceWorker.register('./sw.js')
+              .then(() => console.log('SW registered'))
+              .catch(e => console.log('SW failed:', e));
+          });
+        }
+    </script>
+</body>
+</html>

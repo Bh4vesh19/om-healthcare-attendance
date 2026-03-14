@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OM Health Care — Attendance System</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="index-page">
+    <div class="index-card">
+      <div class="brand-logo" id="indexLogo">🏥</div>
+      <h1>OM Health Care</h1>
+      <p>Staff Attendance Management System</p>
+      <div class="index-btns">
+        <a href="staff-login.html" class="btn btn-primary" style="font-size:1rem; padding:1rem;">
+          👤 Staff Login
+        </a>
+        <a href="admin-login.html" class="btn btn-navy" style="font-size:1rem; padding:1rem;">
+          🔐 Admin Login
+        </a>
+      </div>
+    </div>
+    <p style="color:rgba(255,255,255,0.4); font-size:0.78rem; text-align:center;">
+      OM Health Care &nbsp;·&nbsp; Attendance System &nbsp;·&nbsp; Powered by Firebase
+    </p>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script>
+    // If user is already logged in, redirect appropriately
+    auth.onAuthStateChanged(user => {
+      if (!user) return;
+      if (user.email === ADMIN_EMAIL) window.location.href = "admin-dashboard.html";
+      else window.location.href = "staff-dashboard.html";
+    });
+    // Load logo if saved in localStorage
+    const logo = localStorage.getItem('omhc_logo');
+    if (logo) {
+      const el = document.getElementById('indexLogo');
+      el.innerHTML = `<img src="${logo}" alt="logo">`;
+    }
+  </script>
+</body>
+</html>
