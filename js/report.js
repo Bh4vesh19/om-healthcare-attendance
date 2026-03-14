@@ -15,26 +15,32 @@ const ReportSvc = {
 
   getWorkingHoursText: function(record) {
     if (record.totalMinutes && Number(record.totalMinutes) > 0) {
-      return (Number(record.totalMinutes) / 60).toFixed(2);
+      const hours = Math.floor(record.totalMinutes / 60);
+      const mins = record.totalMinutes % 60;
+      return `${hours}h ${mins}m`;
     }
-    if (record.checkIn && record.checkOut) {
-      const [ih, im] = record.checkIn.split(':').map(Number);
-      const [oh, om] = record.checkOut.split(':').map(Number);
-      const mins = Math.max(0, (oh * 60 + om) - (ih * 60 + im));
-      return (mins / 60).toFixed(2);
+    return '0h 0m';
+  },
+
+  getExtraHoursText: function(record) {
+    if (record.extraMinutes && Number(record.extraMinutes) > 0) {
+      const hours = Math.floor(record.extraMinutes / 60);
+      const mins = record.extraMinutes % 60;
+      return `${hours}h ${mins}m`;
     }
-    return '0';
+    return '0h 0m';
   },
 
   buildRows: function(records) {
     return records.map(r => ([
       `"${r.staffName || ''}"`,
       `"${r.date || ''}"`,
-      `"${r.checkIn || ''}"`,
-      `"${r.checkOut || 'Active'}"`,
+      `"${r.checkIn || '--:--'}"`,
+      `"${r.checkOut || '--:--'}"`,
+      `"${r.lateByMins || 0}"`,
       `"${this.getWorkingHoursText(r)}"`,
-      `"${r.status || ''}"`,
-      `"${r.latitude || ''},${r.longitude || ''}"`
+      `"${this.getExtraHoursText(r)}"`,
+      `"${r.status || ''}"`
     ]));
   },
 
@@ -45,7 +51,7 @@ const ReportSvc = {
       return;
     }
 
-    const headers = ['Staff Name', 'Date', 'Check-In', 'Check-Out', 'Working Hours', 'Status', 'Lat/Long'];
+    const headers = ['Staff Name', 'Date', 'Check-In', 'Check-Out', 'Late Minutes', 'Total Hours', 'Extra Hours', 'Status'];
     const rows = this.buildRows(records);
 
     const csvContent = 
@@ -55,16 +61,18 @@ const ReportSvc = {
     this.triggerDownload(csvContent, fileName, 'text/csv;charset=utf-8;', 'csv');
   },
 
-  // Excel-compatible export (CSV content with .xls extension)
+  // Excel-compatible export
   downloadExcel: function(records, fileName) {
     if (!records || records.length === 0) {
       alert('No records found for the selected period.');
       return;
     }
 
-    const headers = ['Staff Name', 'Date', 'Check-In', 'Check-Out', 'Working Hours', 'Status', 'Lat/Long'];
+    const headers = ['Staff Name', 'Date', 'Check-In', 'Check-Out', 'Late Minutes', 'Total Hours', 'Extra Hours', 'Status'];
     const rows = this.buildRows(records);
-    const content = headers.join('\t') + '\n' + rows.map(e => e.join('\t')).join('\n');
+    
+    // Using simple Tab-Separated Values which Excel opens perfectly
+    const content = headers.join('\t') + '\n' + rows.map(e => e.join('\t').replace(/"/g, '')).join('\n');
 
     this.triggerDownload(content, fileName, 'application/vnd.ms-excel;charset=utf-8;', 'xls');
   }

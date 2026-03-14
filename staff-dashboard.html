@@ -22,6 +22,28 @@
     <script src="js/auth.js?v=3"></script>
     <script src="js/gps.js?v=3"></script>
     <script src="js/attendance.js?v=3"></script>
+    <style>
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 100%;
+        }
+        .btn-large {
+            height: 60px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        @media (min-width: 768px) {
+            .action-buttons {
+                flex-direction: row;
+                width: auto;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Mobile Topbar -->
@@ -78,9 +100,9 @@
                         </div>
 
                         <div id="actionArea" class="action-buttons">
-                            <button id="btnIn" class="btn btn-success" onclick="handleIn()">CHECK IN</button>
-                            <button id="btnOut" class="btn btn-danger" onclick="handleOut()" disabled>CHECK OUT</button>
-                            <button id="btnAbsent" class="btn btn-ghost" onclick="handleAbsent()">MARK ABSENT</button>
+                            <button id="btnIn" class="btn btn-success btn-large" onclick="handleIn()">CHECK IN</button>
+                            <button id="btnOut" class="btn btn-danger btn-large" onclick="handleOut()" disabled>CHECK OUT</button>
+                            <button id="btnAbsent" class="btn btn-ghost btn-large" onclick="handleAbsent()" style="border: 1px solid rgba(255,255,255,0.2);">MARK ABSENT</button>
                         </div>
                     </div>
                 </div>
@@ -102,10 +124,11 @@
 
                 <!-- GPS Status Hidden for now as per Fix 5 -->
                 <!-- GPS Status Indicator -->
-                <div id="locationInfo" style="margin-top: 1rem; text-align: left;">
-                    <span style="font-size: 0.8rem; opacity: 0.6; margin-right: 0.5rem;">SHOP ZONE:</span>
-                    <div id="zoneBadge" class="status-badge" style="display: inline-block; background: var(--primary); color: white;">
-                        📍 Checking...
+                <!-- GPS Status Indicator -->
+                <div id="locationInfo" style="margin-top: 1.5rem; text-align: left; background: rgba(0,0,0,0.2); padding: 0.8rem; border-radius: 8px;">
+                    <span style="font-size: 0.85rem; opacity: 0.8; margin-right: 0.5rem; font-weight: 600;">📍 SHOP ZONE:</span>
+                    <div id="zoneBadge" class="status-badge" style="display: inline-block; background: var(--primary); color: white; padding: 6px 12px; font-weight: bold;">
+                        Checking...
                     </div>
                 </div>
             </div>
@@ -183,16 +206,31 @@
 
         function updateShiftWindowMessage(previewEl) {
             const windowState = AttendanceSvc.getShiftWindowStatus(session);
-            if (windowState.reason === 'shift-ended') {
-                previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="color: var(--danger);">Your shift has already ended.</span>`;
-                return { canCheckIn: false, ended: true };
+            const now = new Date();
+            const nowMins = now.getHours() * 60 + now.getMinutes();
+            const startMins = AttendanceSvc.parseTimeToMinutes(session.shiftStart);
+            const endMins = AttendanceSvc.parseTimeToMinutes(session.shiftEnd);
+
+            const isInWindow = AttendanceSvc.isTimeInWindow(nowMins, startMins, endMins);
+
+            if (!isInWindow) {
+                if (startMins <= endMins) {
+                    // Day shift
+                    if (nowMins < startMins) {
+                        previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="color: var(--warning);">Starts at ${session.shiftStart}</span>`;
+                        return { canCheckIn: false };
+                    } else {
+                        previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="color: var(--danger);">Shift has ended</span>`;
+                        return { canCheckIn: false };
+                    }
+                } else {
+                    // Night shift
+                    previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="color: var(--warning);">Not shift time yet</span>`;
+                    return { canCheckIn: false };
+                }
             }
-            if (windowState.reason === 'before-shift') {
-                previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="opacity:0.8;">Check-in allowed only during shift time</span>`;
-                return { canCheckIn: false, ended: false };
-            }
-            previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="opacity:0.7;">Ready for check-in</span>`;
-            return { canCheckIn: true, ended: false };
+            previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="color: var(--success); font-weight: 600;">✓ Ready for check-in</span>`;
+            return { canCheckIn: true };
         }
 
         function updateUI(record) {
@@ -289,12 +327,19 @@
                 }
                 await GPS.verifyWithinRange(ALLOWED_RADIUS_METERS);
                 await AttendanceSvc.markIn(session);
-                alert("✓ Check-in recorded");
+                
+                // Visual Confirmation
+                btn.textContent = "✓ CHECK-IN RECORDED";
+                btn.style.background = "#2ecc71";
+                setTimeout(() => {
+                    btn.textContent = "CHECK IN";
+                    btn.style.background = "";
+                }, 3000);
             } catch (e) {
                 console.error("Check-in failed:", e.message);
                 btn.textContent = "CHECK IN";
                 btn.disabled = false;
-                alert("Save failed: " + e.message);
+                alert("❌ " + e.message);
             }
         }
 
@@ -306,12 +351,19 @@
             try {
                 await GPS.verifyWithinRange(ALLOWED_RADIUS_METERS);
                 await AttendanceSvc.markOut(session);
-                alert("✓ Check-out recorded");
+                
+                // Visual Confirmation
+                btn.textContent = "✓ CHECK-OUT RECORDED";
+                btn.style.background = "#2ecc71";
+                setTimeout(() => {
+                    btn.textContent = "CHECK OUT";
+                    btn.style.background = "";
+                }, 3000);
             } catch (e) {
                 console.error("Check-out failed:", e.message);
                 btn.textContent = "CHECK OUT";
                 btn.disabled = false;
-                alert("Check-out failed: " + e.message);
+                alert("❌ " + e.message);
             }
         }
 

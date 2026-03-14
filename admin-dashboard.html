@@ -128,7 +128,9 @@
                                     <th>Date</th>
                                     <th>Check IN</th>
                                     <th>Check OUT</th>
+                                    <th>Late (m)</th>
                                     <th>Work Hours</th>
+                                    <th>Extra Hours</th>
                                     <th>Zone</th>
                                     <th>Status</th>
                                 </tr>
@@ -252,10 +254,11 @@
                                 <tr>
                                     <th>Date</th>
                                     <th>Name</th>
-                                    <th>Role</th>
                                     <th>In</th>
                                     <th>Out</th>
-                                    <th>Hours</th>
+                                    <th>Late (m)</th>
+                                    <th>Work Hours</th>
+                                    <th>Extra Hours</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -380,13 +383,17 @@
                     tbody.innerHTML = records.map(r => {
                         const statusClass = (r.status === 'Late' || r.status === 'Absent') ? 'status-absent' : 'status-present';
                         const zoneLabel = r.status === 'Absent' ? '—' : (r.gpsFlagged ? '🔴 Out' : '🟢 In');
+                        const workHrs = AdminSvc.calcWorkingHours(r.checkIn, r.checkOut, r.date);
+                        const extraHrs = r.extraMinutes ? `${Math.floor(r.extraMinutes/60)}h ${r.extraMinutes%60}m` : '0h 0m';
                         return `
                             <tr>
                                 <td>${r.staffName}</td>
                                 <td>${r.date}</td>
                                 <td>${r.checkIn || '--:--'}</td>
                                 <td>${r.checkOut || '--:--'}</td>
-                                <td>${AdminSvc.calcWorkingHours(r.checkIn, r.checkOut, r.date)}</td>
+                                <td>${r.lateByMins || 0}</td>
+                                <td>${workHrs}</td>
+                                <td style="color: ${r.extraMinutes > 0 ? '#4caf7d' : 'inherit'}; font-weight: ${r.extraMinutes > 0 ? '600' : 'normal'};">${extraHrs}</td>
                                 <td style="font-weight:600;">${zoneLabel}</td>
                                 <td><span class="status-badge ${statusClass}">${r.status || 'Present'}</span></td>
                             </tr>
@@ -459,17 +466,20 @@
                 }
 
                 document.getElementById('downloadButtons').style.display = 'flex';
-                tbody.innerHTML = records.map(r => `
+                tbody.innerHTML = records.map(r => {
+                    const extraHrs = r.extraMinutes ? `${Math.floor(r.extraMinutes/60)}h ${r.extraMinutes%60}m` : '0h 0m';
+                    return `
                     <tr>
                         <td>${r.date}</td>
                         <td>${r.staffName}</td>
-                        <td>${r.role || 'Staff'}</td>
                         <td>${r.checkIn || '--:--'}</td>
                         <td>${r.checkOut || '--:--'}</td>
+                        <td>${r.lateByMins || 0}</td>
                         <td>${AdminSvc.calcWorkingHours(r.checkIn, r.checkOut, r.date)}</td>
+                        <td>${extraHrs}</td>
                         <td><span class="status-badge ${r.status === 'Late' ? 'status-absent' : 'status-present'}">${r.status}</span></td>
                     </tr>
-                `).join('');
+                `}).join('');
             } catch (e) {
                 console.error("Report generation error:", e);
                 alert("Failed to generate report: " + e.message);

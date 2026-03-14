@@ -8,54 +8,80 @@ const AttendanceSvc = {
     return ((Number.isFinite(h) ? h : 0) * 60) + (Number.isFinite(m) ? m : 0);
   },
 
+  // Helper to handle time comparison including across midnight
+  isTimeInWindow(nowMins, startMins, endMins) {
+    if (startMins <= endMins) {
+        // Day shift: e.g., 09:00 to 18:00
+        return nowMins >= startMins && nowMins <= endMins;
+    } else {
+        // Night shift: e.g., 21:00 to 01:00
+        return nowMins >= startMins || nowMins <= endMins;
+    }
+  },
+
   getShiftWindowStatus(session) {
     const now = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
     const shiftStartMins = this.parseTimeToMinutes(session.shiftStart, "09:00");
     const shiftEndMins = this.parseTimeToMinutes(session.shiftEnd, "18:00");
 
-    if (nowMins < (shiftStartMins - 60)) {
-       return { canCheckIn: false, reason: "too-early", nowMins, shiftStartMins, shiftEndMins };
+    const inWindow = this.isTimeInWindow(nowMins, shiftStartMins, shiftEndMins);
+    
+    if (!inWindow) {
+      if (shiftStartMins <= shiftEndMins) {
+        if (nowMins < shiftStartMins) return { canCheckIn: false, reason: "too-early" };
+        return { canCheckIn: false, reason: "shift-ended" };
+      } else {
+        return { canCheckIn: false, reason: "too-early" };
+      }
     }
-    if (nowMins > shiftEndMins) {
-      return { canCheckIn: false, reason: "shift-ended", nowMins, shiftStartMins, shiftEndMins };
-    }
-    return { canCheckIn: true, reason: "within-shift", nowMins, shiftStartMins, shiftEndMins };
+    return { canCheckIn: true, reason: "within-shift" };
   },
 
   // Mark IN: persistent & resilient
   async markIn(session) {
     try {
+      // 1. GPS Verification (Required)
+      await GPS.verifyWithinRange(ALLOWED_RADIUS_METERS);
+
       const today = getCurrentDate();
       const timeStr = getCurrentTime().substring(0, 5); // HH:MM
       const now = new Date();
       const nowMins = now.getHours() * 60 + now.getMinutes();
 
-      const recordRef = db.collection('attendance').doc(`${session.docId}-${today}`);
+      const shiftStartMins = this.parseTimeToMinutes(session.shiftStart, "09:00");
+      const shiftEndMins = this.parseTimeToMinutes(session.shiftEnd, "18:00");
 
-      // Check if already checked in (using cache for speed)
-      let record;
-      try {
-        record = await recordRef.get({ source: 'cache' });
-      } catch (e) {
-        record = await recordRef.get();
+      // 2. Strict Shift Rules
+      // Rule 2: Cannot check in before shift start
+      // Note: For night shifts, if it's currently Morning (e.g., 08:00) and shift is 21:00, it's too early.
+      // But if it's 20:59, it's also too early.
+      if (shiftStartMins <= shiftEndMins) {
+          // Day shift
+          if (nowMins < shiftStartMins) throw new Error(`Your shift has not started yet. Starts at ${session.shiftStart}.`);
+          if (nowMins > shiftEndMins) throw new Error(`Your shift has already ended.`);
+      } else {
+          // Night shift (e.g., 21:00 to 01:00)
+          // Valid only if we are in the [Start...23:59] or [00:00...End] window
+          if (!this.isTimeInWindow(nowMins, shiftStartMins, shiftEndMins)) {
+               // Check if it's "Before" the night (e.g., 18:00) or "After" the morning (e.g., 05:00)
+               if (nowMins > shiftEndMins && nowMins < shiftStartMins) {
+                   throw new Error(`Your shift has not started yet. Starts at ${session.shiftStart}.`);
+               }
+          }
       }
-      
+
+      const recordRef = db.collection('attendance').doc(`${session.docId}-${today}`);
+      const record = await recordRef.get();
       if (record.exists) throw new Error('Already checked in today.');
 
-      const [shiftH, shiftM] = (session.shiftStart || "09:00").split(':').map(Number);
-      const shiftStartMins = shiftH * 60 + shiftM;
-
-      // Logic check
-      if (nowMins < (shiftStartMins - 60)) {
-          throw new Error(`Too early. Shift starts at ${session.shiftStart}.`);
-      }
-
       const grace = parseInt(session.lateGraceMins) || 15;
-      const status = nowMins <= (shiftStartMins + grace) 
-        ? (nowMins <= shiftStartMins ? 'Present' : 'Late') 
-        : 'Late';
-      const lateBy = Math.max(0, nowMins - shiftStartMins);
+      let lateBy = 0;
+      if (nowMins > shiftStartMins && nowMins < shiftStartMins + 720) { // 720 is 12h, basic protection
+          lateBy = Math.max(0, nowMins - shiftStartMins);
+      }
+      
+      const status = lateBy > grace ? 'Late' : 'Present';
 
       const checkInData = {
         staffDocId: session.docId,
@@ -70,13 +96,10 @@ const AttendanceSvc = {
         shiftEnd: session.shiftEnd || '18:00',
         totalMinutes: 0,
         extraMinutes: 0,
-        totalSecondsInZone: 0,
-        gpsFlagged: false,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
 
-      // Set with offline support (no await on purpose to return early if offline)
-      recordRef.set(checkInData).catch(e => console.error("Persistence error:", e));
+      await recordRef.set(checkInData);
       return checkInData;
     } catch (e) {
       console.error('MarkIn Error:', e);
@@ -103,8 +126,6 @@ const AttendanceSvc = {
         shiftEnd: session.shiftEnd || '18:00',
         totalMinutes: 0,
         extraMinutes: 0,
-        totalSecondsInZone: 0,
-        gpsFlagged: false,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
 
@@ -116,38 +137,67 @@ const AttendanceSvc = {
     }
   },
 
-  // Mark OUT: persistent & resilient
+  // Mark OUT
   async markOut(session) {
     try {
+      // 1. GPS Verification
+      await GPS.verifyWithinRange(ALLOWED_RADIUS_METERS);
+
       const today = getCurrentDate();
       const timeStr = getCurrentTime().substring(0, 5); // HH:MM
       const now = new Date();
-
-      const recordRef = db.collection('attendance').doc(`${session.docId}-${today}`);
-      const record = await recordRef.get();
-
-      if (!record.exists) throw new Error('No active check-in found.');
-      const data = record.data();
-      if (data.checkOut) throw new Error('Already marked out today.');
-      if (data.status === 'Absent') throw new Error('Cannot check out after marking absent.');
-
-      const inTime = data.checkIn;
-      const [inH, inM] = inTime.split(':').map(Number);
       const nowMins = now.getHours() * 60 + now.getMinutes();
-      const totalMins = Math.max(0, nowMins - (inH * 60 + inM));
+
+      // For night shifts, the check-in might be on the previous day
+      let recordRef = db.collection('attendance').doc(`${session.docId}-${today}`);
+      let record = await recordRef.get();
+
+      if (!record.exists) {
+         // Check "Yesterday" in case of night shift or past-midnight checkout
+         const yesterday = new Date(now.getTime() - 86400000);
+         const yDay = yesterday.toISOString().split('T')[0];
+         recordRef = db.collection('attendance').doc(`${session.docId}-${yDay}`);
+         record = await recordRef.get();
+      }
+
+      if (!record.exists || record.data().checkOut) throw new Error('No active check-in found.');
       
-      const shiftEndMins = this.parseTimeToMinutes(data.shiftEnd, "18:00");
-      const extraMinutes = Math.max(0, nowMins - shiftEndMins);
+      const data = record.data();
+      const inMins = this.parseTimeToMinutes(data.checkIn);
+      const shiftEndMins = this.parseTimeToMinutes(data.shiftEnd);
+
+      // Total minutes calculation (handle midnight)
+      let totalMins = 0;
+      if (nowMins >= inMins) {
+          totalMins = nowMins - inMins;
+      } else {
+          totalMins = (1440 - inMins) + nowMins; // Crossing midnight
+      }
+
+      // Extra hours calculation (checkOut > shiftEnd)
+      let extraMins = 0;
+      if (data.shiftStart > data.shiftEnd) {
+          // Night shift end is roughly next morning. 
+          // If checkout is after shift end (e.g., 01:00) but before some cutoff (e.g., 10:00 AM)
+          if (nowMins > shiftEndMins && nowMins < shiftEndMins + 600) {
+              extraMins = nowMins - shiftEndMins;
+          }
+      } else {
+          // Day shift
+          if (nowMins > shiftEndMins) {
+              extraMins = nowMins - shiftEndMins;
+          }
+      }
 
       const updateData = {
         checkOut: timeStr,
         totalMinutes: totalMins,
-        extraMinutes: extraMinutes,
+        extraMinutes: extraMins,
         totalHours: parseFloat((totalMins / 60).toFixed(2)),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
 
-      recordRef.update(updateData).catch(e => console.error("Persistence error:", e));
+      await recordRef.update(updateData);
       return updateData;
     } catch (e) {
       console.error('MarkOut Error:', e);
