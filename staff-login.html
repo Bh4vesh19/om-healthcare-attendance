@@ -120,8 +120,8 @@
 
         document.getElementById('loginForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            const name = document.getElementById('staffName').value;
-            const password = document.getElementById('password').value;
+            const name = document.getElementById('staffName').value.trim().toLowerCase();
+            const password = document.getElementById('password').value.trim();
             const errorDiv = document.getElementById('errorMessage');
             
             // Assume loginStaff is defined in auth.js and globally accessible

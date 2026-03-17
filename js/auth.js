@@ -144,15 +144,15 @@ function verifySession(requiredRole) {
   }
 
   // 2. FIREBASE ASYNC VALIDATION (Admin only)
-  auth.onAuthStateChanged(user => {
-    if (!user) {
-      console.warn("[AUTH] Admin Firebase state: No user logged in.");
-      sessionStorage.removeItem('omhc_session');
-      window.location.href = './admin-login.html';
-    } else if (user.email.toLowerCase().trim() !== window.ADMIN_EMAIL.toLowerCase().trim()) {
-      window.location.href = './staff-dashboard.html';
-    }
-  });
+    auth.onAuthStateChanged(user => {
+      if (!user) {
+        console.warn("[AUTH] Admin Firebase state: No user logged in.");
+        sessionStorage.removeItem('omhc_session');
+        window.location.assign('./admin-login.html');
+      } else if (user.email.toLowerCase().trim() !== window.ADMIN_EMAIL.toLowerCase().trim()) {
+        window.location.assign('./staff-dashboard.html');
+      }
+    });
 }
 
 // Auth session verification ends here
