@@ -280,10 +280,13 @@
     </div>
 
     <script>
-        // Synchronous Session Guard
-        const session = JSON.parse(sessionStorage.getItem('staffSession') || '{}');
+        // Synchronous Session Guard (iPhone Safari Compatibility)
+        const session = 
+            JSON.parse(sessionStorage.getItem('staffSession') || '{}').loggedIn ? JSON.parse(sessionStorage.getItem('staffSession')) :
+            JSON.parse(localStorage.getItem('staffSession') || '{}');
+
         if (!session.loggedIn || session.role !== 'staff') {
-            window.location.href = './staff-login.html';
+            window.location.assign('./staff-login.html');
         }
 
         let todayRecord = null;
@@ -649,8 +652,9 @@
 
         function logoutUser() {
             sessionStorage.removeItem('staffSession');
+            localStorage.removeItem('staffSession');
             firebase.auth().signOut().then(() => {
-                window.location.href = './staff-login.html';
+                window.location.assign('./staff-login.html');
             });
         }
     </script>

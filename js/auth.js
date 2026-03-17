@@ -68,11 +68,11 @@ async function loginUser(email, password, role) {
       timestamp: Date.now()
     };
     try {
-      sessionStorage.setItem('omhc_session', JSON.stringify(sessionToken));
+      sessionStorage.setItem('adminSession', JSON.stringify(sessionToken));
       sessionStorage.setItem('loginDate', window.getCurrentDate());
     } catch (e) {
       console.warn('Storage fallback to localStorage');
-      localStorage.setItem('omhc_session', JSON.stringify(sessionToken));
+      localStorage.setItem('adminSession', JSON.stringify(sessionToken));
       localStorage.setItem('loginDate', window.getCurrentDate());
     }
     
@@ -87,9 +87,9 @@ async function loginUser(email, password, role) {
 
 // Global logout function
 function logoutUser() {
-  sessionStorage.removeItem('omhc_session');
+  sessionStorage.removeItem('adminSession');
   sessionStorage.removeItem('staffSession');
-  localStorage.removeItem('omhc_session');
+  localStorage.removeItem('adminSession');
   localStorage.removeItem('staffSession');
   
   auth.signOut().finally(() => {
@@ -130,11 +130,11 @@ function verifySession(requiredRole) {
     return; // Staff verification ends here
   }
 
-  let adminSession = JSON.parse(sessionStorage.getItem('omhc_session') || '{}');
+  let adminSession = JSON.parse(sessionStorage.getItem('adminSession') || '{}');
   
   // Storage fallback
   if (!adminSession.loggedIn || adminSession.role !== 'admin') {
-    adminSession = JSON.parse(localStorage.getItem('omhc_session') || '{}');
+    adminSession = JSON.parse(localStorage.getItem('adminSession') || '{}');
   }
 
   if (!adminSession.loggedIn || adminSession.role !== 'admin') {
@@ -147,7 +147,8 @@ function verifySession(requiredRole) {
     auth.onAuthStateChanged(user => {
       if (!user) {
         console.warn("[AUTH] Admin Firebase state: No user logged in.");
-        sessionStorage.removeItem('omhc_session');
+        sessionStorage.removeItem('adminSession');
+        localStorage.removeItem('adminSession');
         window.location.assign('./admin-login.html');
       } else if (user.email.toLowerCase().trim() !== window.ADMIN_EMAIL.toLowerCase().trim()) {
         window.location.assign('./staff-dashboard.html');
