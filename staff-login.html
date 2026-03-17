@@ -7,68 +7,142 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" type="image/jpeg" href="./assets/logo.jpeg"/>
     <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#1e252c"/>
+    <meta name="theme-color" content="#0D1117"/>
     <meta name="apple-mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
     <meta name="apple-mobile-web-app-title" content="OM Attendance"/>
     <meta name="mobile-web-app-capable" content="yes"/>
     <link rel="manifest" href="./manifest.json"/>
     <link rel="apple-touch-icon" href="./assets/logo.jpeg"/>
+    
     <!-- Firebase SDK (v8) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <script src="js/firebase-config.js"></script>
     <script src="js/auth.js"></script>
-</head>
-<body style="display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at top, #1a1a1f, #0a0a0c);">
     
-    <div class="glass-card animate" style="width: 100%; max-width: 420px; padding: 3rem;">
-        <div style="margin-bottom: 2.5rem; text-align: center;">
-            <img 
-              src="./assets/logo.jpeg"
-              alt="OM Health Care"
-              onerror="this.src=LOGO_DATA"
-              style="width:80px; height:80px; 
-                     object-fit:cover; 
-                     border-radius:16px;
-                     display:block;
-                     margin:0 auto 1rem;"
-            />
-          
-            <h1 style="color: var(--primary);">Staff Access</h1>
-            <p class="subtitle">Enter your credentials to mark attendance</p>
+    <style>
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            padding: 2.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        
+        .logo-frame {
+            width: 108px;
+            height: 108px;
+            border-radius: 24px;
+            border: 2px solid var(--border);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-primary);
+            box-shadow: 0 14px 40px rgba(210, 153, 34, 0.18);
+        }
+        
+        .logo-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .password-container {
+            position: relative;
+        }
+        
+        .eye-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .error-message {
+            color: var(--accent-red);
+            font-size: 13px;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body style="display: flex; align-items: center; justify-content: center; padding: 1rem;">
+    
+    <div class="glass-card login-card">
+        <div class="logo-frame">
+            <img src="./assets/logo.jpeg" alt="OM Health Care">
+        </div>
+        
+        <div style="text-align: center;">
+            <h1 style="font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--accent-amber);">Welcome Back!</h1>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">Sign in to continue to OM Health Care</p>
         </div>
 
-        <form id="loginForm">
+        <form id="loginForm" style="width: 100%;">
             <div class="form-group">
                 <label>Your Name</label>
                 <input type="text" id="staffName" placeholder="e.g. Bhavesh" required>
             </div>
+            
             <div class="form-group">
                 <label>Password</label>
-                <input type="password" id="password" placeholder="••••••••" required>
+                <div class="password-container">
+                    <input type="password" id="password" placeholder="••••••••" required>
+                    <button type="button" class="eye-toggle" onclick="togglePassword()">👁️</button>
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 1rem;">SIGN IN</button>
+
+            <div id="errorMessage" class="error-message">Invalid credentials. Please try again.</div>
+
+            <button type="submit" class="btn btn-gold btn-unlocked" style="width: 100%; margin-top: 0.5rem;">AUTHORIZE</button>
         </form>
 
-        <a href="./index.html" style="display: block; text-align: center; margin-top: 1.5rem; color: var(--text-muted); font-size: 0.85rem; text-decoration: none;">&larr; Back to selection</a>
+        <a href="./index.html" style="color: var(--text-secondary); font-size: 0.85rem; text-decoration: none; margin-top: 0.5rem; transition: color 0.2s;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-secondary)'">&larr; Back to selection</a>
     </div>
+
     <script>
+        function togglePassword() {
+            const input = document.getElementById('password');
+            const toggle = e => e.target.textContent = input.type === 'password' ? '👁️' : '🙈';
+            input.type = input.type === 'password' ? 'text' : 'password';
+            document.querySelector('.eye-toggle').textContent = input.type === 'password' ? '👁️' : '🙈';
+        }
+
         document.getElementById('loginForm').addEventListener('submit', (e) => {
             e.preventDefault();
             const name = document.getElementById('staffName').value;
             const password = document.getElementById('password').value;
-            loginStaff(name, password);
+            const errorDiv = document.getElementById('errorMessage');
+            
+            // Assume loginStaff is defined in auth.js and globally accessible
+            if (typeof loginStaff === 'function') {
+                loginStaff(name, password).catch(err => {
+                    errorDiv.style.display = 'block';
+                    errorDiv.textContent = err.message || "Login failed";
+                });
+            } else {
+                console.error("loginStaff function not found. Ensure auth.js is loaded.");
+            }
         });
-    </script>
-    <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {        navigator.serviceWorker.register('./sw.js')
-          .then(() => console.log('SW registered'))
-          .catch(e => console.log('SW failed:', e));
-      });
-    }
+
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(() => console.log('SW registered'))
+                    .catch(e => console.log('SW failed:', e));
+            });
+        }
     </script>
 </body>
 </html>

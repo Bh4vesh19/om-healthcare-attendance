@@ -4,179 +4,282 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard | Staff Portal</title>
-    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="stylesheet" href="css/style.css">
     <link rel="icon" type="image/jpeg" href="./assets/logo.jpeg"/>
     <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#1e252c"/>
+    <meta name="theme-color" content="#0D1117"/>
     <meta name="apple-mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
     <meta name="apple-mobile-web-app-title" content="OM Attendance"/>
     <meta name="mobile-web-app-capable" content="yes"/>
-    <link rel="manifest" href="./manifest.json?v=3"/>
+    <meta name="format-detection" content="telephone=no">
+    <link rel="manifest" href="./manifest.json"/>
     <link rel="apple-touch-icon" href="./assets/logo.jpeg"/>
+    
     <!-- Firebase SDK (v8) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script src="js/firebase-config.js?v=3"></script>
-    <script src="js/auth.js?v=3"></script>
-    <script src="js/gps.js?v=3"></script>
-    <script src="js/attendance.js?v=3"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/gps.js"></script>
+    <script src="js/attendance.js"></script>
+
     <style>
-        .action-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            width: 100%;
+        .hero-section {
+            padding: 1rem 0 2rem;
         }
-        .btn-large {
-            height: 60px;
-            font-size: 1.1rem;
+        
+        .shift-card {
+            border-left: 4px solid var(--accent-amber);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .shift-progress-container {
+            height: 6px;
+            background: #21262D;
+            border-radius: 3px;
+            margin: 1rem 0;
+            overflow: hidden;
+        }
+
+        .shift-progress-bar {
+            height: 100%;
+            background: var(--accent-amber);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .big-countdown {
+            font-size: 2.5rem;
+            font-weight: 800;
+            font-family: monospace;
+            color: var(--text-primary);
+            display: block;
+            margin: 0.5rem 0;
+        }
+
+        .zone-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
             font-weight: 700;
-            letter-spacing: 1px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            font-size: 13px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
         }
-        @media (min-width: 768px) {
-            .action-buttons {
-                flex-direction: row;
-                width: auto;
-            }
+
+        .zone-pill.in-zone { border-color: var(--accent-green); color: var(--accent-green); }
+        .zone-pill.out-zone { border-color: var(--accent-red); color: var(--accent-red); }
+        .zone-pill.locating { border-color: var(--text-secondary); color: var(--text-secondary); }
+
+        .progress-ring-container {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .progress-ring-circle {
+            transition: stroke-dashoffset 0.35s;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+            stroke: var(--accent-blue);
+        }
+
+        .progress-ring-bg {
+            stroke: var(--border);
+        }
+
+        .progress-text {
+            position: absolute;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 900px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        .pane { display: none; }
+        .pane.active { display: block; }
+
+        .history-table td {
+            white-space: nowrap;
         }
     </style>
 </head>
 <body>
-    <!-- Mobile Topbar -->
-    <div class="mobile-topbar" id="mobileTopbar">
-      <button class="hamburger" onclick="toggleSidebar()">
-        <span></span><span></span><span></span>
-      </button>
-      <img src="./assets/logo.jpeg" style="height:36px;border-radius:8px;" alt="Logo"/>
-      <span style="font-size:0.85rem;font-weight:600;color:#eef0f2;">OM Staff</span>
-    </div>
-    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
-
+    
     <div class="main-layout">
-        <aside class="sidebar" id="sidebar">
-            <div style="text-align: center; margin-bottom: 2rem; display: flex; flex-direction: column; align-items: center;">
-                <div style="width:44px;height:44px;
-                  border-radius:10px;overflow:hidden;
-                  flex-shrink:0; margin-bottom: 1rem;">
-                  <img src="./assets/logo.jpeg"
-                       alt="OM"
-                       style="width:100%;height:100%;
-                              object-fit:cover;"
-                       onerror="this.src=LOGO_DATA"/>
-                </div>
-                <h3 style="color: var(--primary);">OM HEALTH</h3>
+        <!-- Desktop Sidebar -->
+        <aside class="sidebar">
+            <div style="padding: 2rem; text-align: center;">
+                <img src="./assets/logo.jpeg" style="width: 60px; height: 60px; border-radius: 12px; margin-bottom: 1rem; border: 1px solid var(--border);" alt="OM Logo">
+                <h3 style="color: var(--accent-amber); font-size: 1rem; letter-spacing: 1px;">OM HEALTH CARE</h3>
             </div>
-            <nav style="display: flex; flex-direction: column; gap: 0.5rem; flex: 1;">
-                <a href="#" class="nav-link active" onclick="showPane('dashboard', this)"><i>🏠</i> Dashboard</a>
-                <a href="#" class="nav-link" onclick="showPane('history', this); loadMyHistory()"><i>📋</i> My History</a>
+            
+            <nav style="flex: 1;">
+                <a href="#" class="nav-item active" id="side-nav-dashboard" onclick="showPane('dashboard')">
+                    <span>🏠</span> Dashboard
+                </a>
+                <a href="#" class="nav-item" id="side-nav-history" onclick="showPane('history')">
+                    <span>📋</span> My History
+                </a>
             </nav>
-            <button class="nav-link" onclick="logoutUser()" style="border: none; background: none; cursor: pointer; width: 100%; text-align: left;">
-                <i>🚪</i> Logout
-            </button>
+
+            <a href="#" class="nav-item danger" onclick="logoutUser()">
+                <span>🚪</span> Logout
+            </a>
         </aside>
 
         <main class="content-area">
+            <!-- Mobile Bottom Nav -->
+            <nav class="bottom-nav">
+                <a href="#" class="mobile-nav-item active" id="mob-nav-dashboard" onclick="showPane('dashboard')">
+                    <span style="font-size: 20px;">🏠</span>
+                    <span>Dash</span>
+                </a>
+                <a href="#" class="mobile-nav-item" id="mob-nav-history" onclick="showPane('history')">
+                    <span style="font-size: 20px;">📋</span>
+                    <span>History</span>
+                </a>
+                <a href="#" class="mobile-nav-item" onclick="logoutUser()">
+                    <span style="font-size: 20px;">🚪</span>
+                    <span>Exit</span>
+                </a>
+            </nav>
+
             <!-- Dashboard Pane -->
-            <div id="pane-dashboard" class="pane">
-                <header style="margin-bottom: 3rem;">
-                    <h1 id="welcomeUser">Welcome, Staff</h1>
-                    <p class="subtitle" id="displayDate">Today is Tuesday, 10th March 2026</p>
+            <div id="pane-dashboard" class="pane active">
+                <header class="hero-section">
+                    <h1 id="welcomeUser" style="font-size: 1.8rem; margin-bottom: 0.25rem;">Good Morning! 👋</h1>
+                    <p id="displayDate" style="color: var(--text-secondary);"></p>
                 </header>
 
-                <div class="glass-card animate" style="margin-bottom: 2rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem;">
-                        <div>
-                            <h4 style="color: var(--text-muted); margin-bottom: 0.5rem;">Shift Details</h4>
-                            <div id="statusPreview" style="font-weight: 500; color: var(--text-muted);">
-                               Shift: <span id="shiftTimeText">--:-- to --:--</span> — Not checked in yet
-                            </div>
-                            <div id="statusBadgeContainer" style="display: none; margin-top: 0.5rem;">
-                               <div id="statusBadge" class="status-badge" style="display: inline-block;">Checking...</div>
+                <div class="dashboard-grid">
+                    <!-- Left Column: Shift Card -->
+                    <div class="glass-card shift-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                            <h4 style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">🕒 Today's Shift</h4>
+                            <span id="shiftRange" style="font-weight: 700; color: var(--text-primary);">--:-- → --:--</span>
+                        </div>
+
+                        <div class="shift-progress-container">
+                            <div id="shiftProgressBar" class="shift-progress-bar"></div>
+                        </div>
+
+                        <div style="text-align: center; margin: 2rem 0;">
+                            <span id="countdownLabel" style="font-size: 0.9rem; color: var(--text-secondary);">Calculating Window...</span>
+                            <span id="checkInCountdown" class="big-countdown">00:00:00</span>
+                        </div>
+
+                        <div id="actionArea">
+                            <button id="btnIn" class="btn btn-ghost" style="width: 100%; border-width: 2px;" onclick="handleIn()" disabled>
+                                <span id="btnInIcon">🔒</span> <span id="btnInText">CHECK IN LOCKED</span>
+                            </button>
+                            
+                            <!-- Checked In Status -->
+                            <div id="checkedInStatus" style="display: none; padding: 1.5rem; background: rgba(63, 185, 80, 0.05); border: 1px dashed var(--accent-green); border-radius: 12px; text-align: center;">
+                                <div style="color: var(--accent-green); font-weight: 800; font-size: 1.1rem; margin-bottom: 0.25rem;">✅ ON DUTY</div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Checked in at <span id="statusInTime" style="color: var(--text-primary); font-weight: 700;">--:--</span></div>
                             </div>
                         </div>
 
-                        <div id="actionArea" class="action-buttons">
-                            <button id="btnIn" class="btn btn-success btn-large" onclick="handleIn()">CHECK IN</button>
-                            <button id="btnOut" class="btn btn-danger btn-large" onclick="handleOut()" disabled>CHECK OUT</button>
-                            <button id="btnAbsent" class="btn btn-ghost btn-large" onclick="handleAbsent()" style="border: 1px solid rgba(255,255,255,0.2);">MARK ABSENT</button>
+                        <button id="btnOut" class="btn btn-primary" style="width: 100%; margin-top: 1rem; background: var(--accent-red); display: none;" onclick="handleOut()">CHECK OUT</button>
+                    </div>
+
+                    <!-- Right Column: Stats & Location -->
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <!-- Zone Pill -->
+                        <div class="glass-card" style="text-align: center; padding: 1.5rem;">
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem; text-transform: uppercase; font-weight: 600;">Location Status</p>
+                            <div id="zonePill" class="zone-pill locating">
+                                <span>🟡</span> <span>LOCATING...</span>
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                <div class="stats-grid animate">
-                    <div class="stat-card">
-                        <div class="stat-label">CHECK IN</div>
-                        <div class="stat-value" id="dispCheckIn">--:--</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">CHECK OUT</div>
-                        <div class="stat-value" id="dispCheckOut">--:--</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">WORKING HOURS</div>
-                        <div class="stat-value" id="dispWkHours">0.0h</div>
-                    </div>
-                </div>
+                        <!-- Stats Row -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="stat-card" style="border-left-color: var(--accent-green);">
+                                <span class="stat-label">CHECK IN</span>
+                                <span class="stat-value" id="dispCheckIn">--:--</span>
+                            </div>
+                            <div class="stat-card" style="border-left-color: var(--accent-red);">
+                                <span class="stat-label">CHECK OUT</span>
+                                <span class="stat-value" id="dispCheckOut">--:--</span>
+                            </div>
+                        </div>
 
-                <!-- GPS Status Hidden for now as per Fix 5 -->
-                <!-- GPS Status Indicator -->
-                <!-- GPS Status Indicator -->
-                <div id="locationInfo" style="margin-top: 1.5rem; text-align: left; background: rgba(0,0,0,0.2); padding: 0.8rem; border-radius: 8px;">
-                    <span style="font-size: 0.85rem; opacity: 0.8; margin-right: 0.5rem; font-weight: 600;">📍 SHOP ZONE:</span>
-                    <div id="zoneBadge" class="status-badge" style="display: inline-block; background: var(--primary); color: white; padding: 6px 12px; font-weight: bold;">
-                        Checking...
+                        <!-- Work Hours Circle -->
+                        <div class="glass-card" style="display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <span class="stat-label">WORKED TODAY</span>
+                                <span class="stat-value" id="dispWkHours" style="color: var(--accent-blue);">0.0h</span>
+                            </div>
+                            <div class="progress-ring-container">
+                                <svg class="progress-ring" width="70" height="70">
+                                    <circle class="progress-ring-bg" stroke-width="6" fill="transparent" r="30" cx="35" cy="35"/>
+                                    <circle id="wkProgressRing" class="progress-ring-circle" stroke-width="6" fill="transparent" r="30" cx="35" cy="35" stroke-dasharray="188.5" stroke-dashoffset="188.5"/>
+                                </svg>
+                                <span class="progress-text" id="wkProgressPct">0%</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- History Pane -->
-            <div id="pane-history" class="pane" style="display: none;">
-                <header style="margin-bottom: 2rem;">
-                    <h1>My Attendance History</h1>
-                    <p class="subtitle">Complete record of your check-ins</p>
+            <div id="pane-history" class="pane">
+                <header class="hero-section">
+                    <h1 style="font-size: 1.8rem; margin-bottom: 0.5rem;">Attendance History</h1>
+                    <p style="color: var(--text-secondary);">Detailed record of your work days</p>
                 </header>
 
-                <div class="stats-grid animate" style="margin-bottom: 2rem;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
                     <div class="stat-card">
-                        <div class="stat-label">TOTAL DAYS</div>
-                        <div class="stat-value" id="histTotal">0</div>
+                        <span class="stat-label">PRESENT</span>
+                        <span class="stat-value" id="histPresent">0</span>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">PRESENT</div>
-                        <div class="stat-value" id="histPresent" style="color: var(--success);">0</div>
+                        <span class="stat-label">LATE</span>
+                        <span class="stat-value" id="histLate" style="color: var(--accent-amber);">0</span>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">LATE</div>
-                        <div class="stat-value" id="histLate" style="color: var(--warning);">0</div>
+                        <span class="stat-label">TOTAL</span>
+                        <span class="stat-value" id="histTotal">0</span>
                     </div>
                 </div>
 
-                <div class="glass-card animate">
-                    <div class="table-container">
-                        <table class="staff-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Check In</th>
-                                    <th>Check Out</th>
-                                    <th>Hours</th>
-                                    <th>Status</th>
-                                    <th>Note</th>
-                                </tr>
-                            </thead>
-                            <tbody id="historyTableBody">
-                                <tr><td colspan="6" style="text-align:center;">Loading history...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="table-wrapper">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>DATE</th>
+                                <th>IN</th>
+                                <th>OUT</th>
+                                <th>HOURS</th>
+                                <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody"></tbody>
+                    </table>
                 </div>
             </div>
         </main>
-       <script>
+    </div>
+
+    <script>
         // Synchronous Session Guard
         const session = JSON.parse(sessionStorage.getItem('staffSession') || '{}');
         if (!session.loggedIn || session.role !== 'staff') {
@@ -186,201 +289,314 @@
         let todayRecord = null;
         let gpsInterval = null;
         let workTimerInterval = null;
-        let shiftWindowInterval = null;
-
-        function showPane(paneId, linkEl) {
-            document.querySelectorAll('.pane').forEach(p => p.style.display = 'none');
-            document.getElementById('pane-' + paneId).style.display = 'block';
-            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-            linkEl.classList.add('active');
-        }
+        let countdownInterval = null;
 
         // Initialize UI with session data
-        document.getElementById('welcomeUser').textContent = `Welcome, ${session.name}!`;
-        document.getElementById('shiftTimeText').textContent = `${session.shiftStart} to ${session.shiftEnd}`;
+        document.getElementById('shiftRange').textContent = `${session.shiftStart} to ${session.shiftEnd}`;
+
+        function showPane(paneId) {
+            document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+            const pane = document.getElementById('pane-' + paneId);
+            if (pane) pane.classList.add('active');
+            
+            // Handle active states
+            document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(l => l.classList.remove('active'));
+            document.getElementById('side-nav-' + paneId)?.classList.add('active');
+            document.getElementById('mob-nav-' + paneId)?.classList.add('active');
+
+            if (paneId === 'history') loadMyHistory();
+        }
+
+        // Greeting and date
+        function updateHeader() {
+            const now = new Date();
+            const hours = now.getHours();
+            let greeting = "Good Evening";
+            if (hours < 12) greeting = "Good Morning";
+            else if (hours < 17) greeting = "Good Afternoon";
+            
+            document.getElementById('welcomeUser').textContent = `${greeting}, ${session.name.split(' ')[0]}! 👋`;
+            document.getElementById('displayDate').textContent = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        }
+        setInterval(updateHeader, 60000);
+        updateHeader();
+
+        // Feature: Shift Progress Bar
+        function updateShiftProgress() {
+            const now = new Date();
+            const nowMins = now.getHours() * 60 + now.getMinutes();
+            const startMins = AttendanceSvc.parseTimeToMinutes(session.shiftStart);
+            const endMins = AttendanceSvc.parseTimeToMinutes(session.shiftEnd);
+            
+            let totalShift = endMins - startMins;
+            let currentShift = nowMins - startMins;
+
+            if (totalShift < 0) { // Night Shift
+                totalShift += 1440;
+                if (nowMins < startMins) currentShift += 1440;
+            }
+
+            const pct = Math.min(100, Math.max(0, (currentShift / totalShift) * 100));
+            const bar = document.getElementById('shiftProgressBar');
+            if (bar) bar.style.width = pct + '%';
+        }
+        setInterval(updateShiftProgress, 60000);
+        updateShiftProgress();
 
         // Start listening for today's attendance record
         AttendanceSvc.getTodayRecord(session.docId, record => {
             updateUI(record);
         });
 
-        function updateShiftWindowMessage(previewEl) {
-            const windowState = AttendanceSvc.getShiftWindowStatus(session);
-            const now = new Date();
-            const nowMins = now.getHours() * 60 + now.getMinutes();
-            const startMins = AttendanceSvc.parseTimeToMinutes(session.shiftStart);
-            const endMins = AttendanceSvc.parseTimeToMinutes(session.shiftEnd);
-
-            const isInWindow = AttendanceSvc.isTimeInWindow(nowMins, startMins, endMins);
-
-            if (!isInWindow) {
-                if (startMins <= endMins) {
-                    // Day shift
-                    if (nowMins < startMins) {
-                        previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="color: var(--warning);">Starts at ${session.shiftStart}</span>`;
-                        return { canCheckIn: false };
-                    } else {
-                        previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="color: var(--danger);">Shift has ended</span>`;
-                        return { canCheckIn: false };
-                    }
-                } else {
-                    // Night shift
-                    previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="color: var(--warning);">Not shift time yet</span>`;
-                    return { canCheckIn: false };
-                }
-            }
-            previewEl.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd} — <span style="color: var(--success); font-weight: 600;">✓ Ready for check-in</span>`;
-            return { canCheckIn: true };
-        }
-
         function updateUI(record) {
             todayRecord = record;
             const btnIn = document.getElementById('btnIn');
+            const btnInText = document.getElementById('btnInText');
+            const btnInIcon = document.getElementById('btnInIcon');
             const btnOut = document.getElementById('btnOut');
-            const btnAbsent = document.getElementById('btnAbsent');
-            const statusBadgeContainer = document.getElementById('statusBadgeContainer');
-            const badge = document.getElementById('statusBadge');
-            const preview = document.getElementById('statusPreview');
+            const checkedInStatus = document.getElementById('checkedInStatus');
+            const countdownEl = document.getElementById('checkInCountdown');
+            const countdownLabel = document.getElementById('countdownLabel');
 
             if (!record) {
-                const shiftState = updateShiftWindowMessage(preview);
-                statusBadgeContainer.style.display = 'none';
-                btnIn.disabled = !shiftState.canCheckIn;
-                btnIn.textContent = "CHECK IN";
-                btnOut.disabled = true;
-                btnOut.textContent = "CHECK OUT";
-                btnAbsent.style.display = 'inline-flex';
-                btnAbsent.disabled = false;
-                btnAbsent.textContent = "MARK ABSENT";
+                const windowState = AttendanceSvc.getShiftWindowStatus(session);
+                checkedInStatus.style.display = 'none';
+                btnIn.style.display = 'flex';
+                btnOut.style.display = 'none';
+                
+                if (windowState.canCheckIn) {
+                    btnIn.disabled = false;
+                    btnIn.className = "btn btn-gold btn-unlocked";
+                    btnInText.textContent = "CHECK IN NOW";
+                    btnInIcon.textContent = "🚀";
+                    countdownLabel.textContent = "✓ Shift session is active";
+                    countdownEl.textContent = "READY";
+                    if (countdownInterval) clearInterval(countdownInterval);
+                } else {
+                    btnIn.disabled = true;
+                    btnIn.className = "btn btn-ghost";
+                    if (windowState.reason === 'too-early') {
+                        btnInText.textContent = "CHECK IN LOCKED";
+                        btnInIcon.textContent = "🔒";
+                        countdownLabel.textContent = "⏳ Check-in opens in";
+                        startCheckInCountdown(session.shiftStart);
+                    } else {
+                        btnInText.textContent = "SHIFT ENDED";
+                        btnInIcon.textContent = "🚫";
+                        countdownLabel.textContent = "Shift window closed";
+                        countdownEl.textContent = "--:--:--";
+                    }
+                }
+                
                 document.getElementById('dispCheckIn').textContent = "--:--";
                 document.getElementById('dispCheckOut').textContent = "--:--";
-                document.getElementById('dispWkHours').textContent = "0.0h";
+                updateProgressRing(0);
                 if (workTimerInterval) clearInterval(workTimerInterval);
                 stopGpsTracking();
             } else {
-                statusBadgeContainer.style.display = 'block';
-                btnAbsent.style.display = 'none';
                 document.getElementById('dispCheckIn').textContent = record.checkIn || "--:--";
-                badge.textContent = record.status || "Present";
-                badge.className = (record.status === 'Late' || record.status === 'Absent') ? "status-badge status-absent" : "status-badge status-present";
-                preview.innerHTML = `Shift: ${session.shiftStart} to ${session.shiftEnd}`;
-
+                
                 if (record.status === 'Absent') {
-                    badge.textContent = "Absent";
-                    badge.className = "status-badge status-absent";
+                    btnIn.style.display = 'flex';
                     btnIn.disabled = true;
-                    btnIn.textContent = "ABSENT MARKED";
-                    btnOut.disabled = true;
-                    btnOut.textContent = "CHECK OUT";
-                    document.getElementById('dispCheckOut').textContent = "--:--";
-                    document.getElementById('dispWkHours').textContent = "0.0h";
+                    btnInText.textContent = "MARKED ABSENT";
+                    btnInIcon.textContent = "❌";
+                    checkedInStatus.style.display = 'none';
+                    btnOut.style.display = 'none';
+                    updateProgressRing(0);
                     if (workTimerInterval) clearInterval(workTimerInterval);
                     stopGpsTracking();
                     return;
                 }
                 
                 if (record.checkOut) {
-                    badge.textContent = "Shift Completed";
-                    badge.className = "status-badge status-present";
+                    btnIn.style.display = 'flex';
                     btnIn.disabled = true;
-                    btnIn.textContent = "CHECK IN";
-                    btnOut.disabled = true;
-                    btnOut.textContent = "CHECK OUT";
+                    btnInText.textContent = "WORK COMPLETED";
+                    btnInIcon.textContent = "✅";
+                    checkedInStatus.style.display = 'none';
+                    btnOut.style.display = 'none';
                     document.getElementById('dispCheckOut').textContent = record.checkOut;
-                    document.getElementById('dispWkHours').textContent = (record.totalHours || 0) + "h (Complete)";
+                    const hrs = record.totalHours || 0;
+                    updateProgressRing(hrs);
                     if (workTimerInterval) clearInterval(workTimerInterval);
                     stopGpsTracking();
                 } else {
-                    btnIn.disabled = true;
-                    btnIn.textContent = "CHECK IN";
-                    btnOut.disabled = false;
-                    btnOut.textContent = "CHECK OUT";
+                    if (AttendanceSvc.hasShiftEnded(record)) {
+                        AttendanceSvc.autoMarkOut(session, record.date, record.shiftEnd || session.shiftEnd);
+                        return;
+                    }
+
+                    // Active Check-in
+                    btnIn.style.display = 'none';
+                    checkedInStatus.style.display = 'block';
+                    document.getElementById('statusInTime').textContent = record.checkIn;
+                    btnOut.style.display = 'flex';
+                    
                     startLiveWorkTimer(record.checkIn);
                     startGpsTracking();
                 }
             }
         }
 
+        function updateProgressRing(hrs) {
+            const h = parseFloat(hrs);
+            document.getElementById('dispWkHours').textContent = h.toFixed(1) + 'h';
+            const pct = Math.min(100, (h / 8) * 100);
+            const circle = document.getElementById('wkProgressRing');
+            if (circle) {
+                const radius = circle.r.baseVal.value;
+                const circumference = radius * 2 * Math.PI;
+                const offset = circumference - (pct / 100 * circumference);
+                circle.style.strokeDashoffset = offset;
+            }
+            const pctEl = document.getElementById('wkProgressPct');
+            if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+        }
+
         function startLiveWorkTimer(checkInTimeStr) {
             if (workTimerInterval) clearInterval(workTimerInterval);
-            const el = document.getElementById('dispWkHours');
-            function update() {
-                el.textContent = calcWorkingHoursLive(checkInTimeStr) + ' (Active)';
+            async function update() {
+                if (!todayRecord) return;
+
+                if (!todayRecord.checkOut && AttendanceSvc.hasShiftEnded(todayRecord)) {
+                    await AttendanceSvc.autoMarkOut(session, todayRecord.date, todayRecord.shiftEnd || session.shiftEnd);
+                    return;
+                }
+
+                const h = AttendanceSvc.getCappedWorkedHours({
+                    ...todayRecord,
+                    checkIn: checkInTimeStr
+                });
+                updateProgressRing(h);
             }
             update();
             workTimerInterval = setInterval(update, 60000);
         }
 
+        function startCheckInCountdown(shiftStartTimeStr) {
+            if (countdownInterval) clearInterval(countdownInterval);
+            const countdownEl = document.getElementById('checkInCountdown');
+
+            function update() {
+                const now = new Date();
+                const [sh, sm] = shiftStartTimeStr.split(':').map(Number);
+                const startTime = new Date();
+                startTime.setHours(sh, sm, 0, 0);
+
+                const diffMs = startTime - now;
+                if (diffMs <= 0) {
+                    clearInterval(countdownInterval);
+                    AttendanceSvc.getTodayRecord(session.docId, updateUI);
+                    return;
+                }
+
+                const totalSecs = Math.floor(diffMs / 1000);
+                const hrs = Math.floor(totalSecs / 3600);
+                const mins = Math.floor((totalSecs % 3600) / 60);
+                const secs = totalSecs % 60;
+                
+                if (countdownEl) {
+                    countdownEl.textContent = `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+                }
+            }
+            update();
+            countdownInterval = setInterval(update, 1000);
+        }
+
+        function startGpsTracking() {
+            const updateZonePill = (res) => {
+                const pill = document.getElementById('zonePill');
+                if (pill) {
+                    pill.className = `zone-pill ${res.isWithinRange ? 'in-zone' : 'out-zone'}`;
+                    pill.innerHTML = res.isWithinRange 
+                        ? `<span>🟢</span> <span>IN ZONE</span>`
+                        : `<span>🔴</span> <span>OUT OF ZONE</span>`;
+                }
+            };
+            if (!gpsInterval) {
+                gpsInterval = setInterval(() => {
+                    if (typeof checkStaffLocation !== 'function') return;
+                    checkStaffLocation(async (res) => {
+                        updateZonePill(res);
+                        if (todayRecord && !todayRecord.checkOut && todayRecord.checkIn && !res.error) {
+                            const today = getCurrentDate();
+                            const docId = `${session.docId}-${today}`;
+                            await db.collection('attendance').doc(docId).update({
+                                zoneStatus: res.isWithinRange ? 'in_zone' : 'out_of_zone',
+                                gpsFlagged: !res.isWithinRange,
+                                lastCoords: res.coords || null,
+                                lastGpsUpdate: firebase.firestore.FieldValue.serverTimestamp(),
+                                lastGpsCheck: firebase.firestore.FieldValue.serverTimestamp()
+                            }).catch(e => console.error("Heartbeat fail:", e));
+                        }
+                    });
+                }, 1000);
+            }
+            if (typeof checkStaffLocation === 'function') {
+                checkStaffLocation(async (res) => {
+                    updateZonePill(res);
+                    if (todayRecord && !todayRecord.checkOut && todayRecord.checkIn && !res.error) {
+                        const today = getCurrentDate();
+                        const docId = `${session.docId}-${today}`;
+                        await db.collection('attendance').doc(docId).update({
+                            zoneStatus: res.isWithinRange ? 'in_zone' : 'out_of_zone',
+                            gpsFlagged: !res.isWithinRange,
+                            lastCoords: res.coords || null,
+                            lastGpsUpdate: firebase.firestore.FieldValue.serverTimestamp(),
+                            lastGpsCheck: firebase.firestore.FieldValue.serverTimestamp()
+                        }).catch(e => console.error("Heartbeat fail:", e));
+                    }
+                });
+            }
+        }
+
+        function stopGpsTracking() {
+            if (gpsInterval) { clearInterval(gpsInterval); gpsInterval = null; }
+            const pill = document.getElementById('zonePill');
+            if (pill) {
+                pill.className = "zone-pill locating";
+                pill.innerHTML = `<span>🟡</span> <span>OFF DUTY</span>`;
+            }
+        }
+
         async function handleIn() {
             const btn = document.getElementById('btnIn');
+            const originalContent = btn.innerHTML;
             btn.textContent = "SAVING...";
             btn.disabled = true;
 
             try {
-                // Fix 4: Duplicate check
                 const alreadyIn = await AttendanceSvc.checkAlreadyCheckedIn(session.docId);
-                if (alreadyIn) {
-                    alert('You already checked in today');
-                    btn.textContent = "CHECK IN";
-                    btn.disabled = false;
-                    return;
-                }
+                if (alreadyIn) throw new Error('Already checked in today');
+                
                 await GPS.verifyWithinRange(ALLOWED_RADIUS_METERS);
                 await AttendanceSvc.markIn(session);
                 
-                // Visual Confirmation
-                btn.textContent = "✓ CHECK-IN RECORDED";
-                btn.style.background = "#2ecc71";
-                setTimeout(() => {
-                    btn.textContent = "CHECK IN";
-                    btn.style.background = "";
-                }, 3000);
+                btn.textContent = "✅ SUCCESS";
+                btn.style.background = "var(--accent-green)";
             } catch (e) {
-                console.error("Check-in failed:", e.message);
-                btn.textContent = "CHECK IN";
+                console.error("In failed:", e);
+                btn.innerHTML = originalContent;
                 btn.disabled = false;
                 alert("❌ " + e.message);
             }
         }
 
         async function handleOut() {
-            if (!confirm("Are you sure you want to clock out for today?")) return;
+            if (!confirm("Confirm Clock Out?")) return;
             const btn = document.getElementById('btnOut');
             btn.textContent = "SAVING...";
             btn.disabled = true;
             try {
                 await GPS.verifyWithinRange(ALLOWED_RADIUS_METERS);
                 await AttendanceSvc.markOut(session);
-                
-                // Visual Confirmation
-                btn.textContent = "✓ CHECK-OUT RECORDED";
-                btn.style.background = "#2ecc71";
-                setTimeout(() => {
-                    btn.textContent = "CHECK OUT";
-                    btn.style.background = "";
-                }, 3000);
+                btn.textContent = "✅ CLOCKED OUT";
             } catch (e) {
-                console.error("Check-out failed:", e.message);
+                console.error("Out failed:", e);
                 btn.textContent = "CHECK OUT";
                 btn.disabled = false;
                 alert("❌ " + e.message);
-            }
-        }
-
-        async function handleAbsent() {
-            if (!confirm("Mark yourself absent for today?")) return;
-            const btn = document.getElementById('btnAbsent');
-            btn.textContent = "SAVING...";
-            btn.disabled = true;
-
-            try {
-                await AttendanceSvc.markAbsent(session);
-                alert("✓ Absent marked");
-            } catch (e) {
-                console.error("Absent mark failed:", e.message);
-                btn.textContent = "MARK ABSENT";
-                btn.disabled = false;
-                alert("Absent mark failed: " + e.message);
             }
         }
 
@@ -388,115 +604,54 @@
             try {
                 const snap = await db.collection('attendance')
                     .where('staffDocId', '==', session.docId)
+                    .orderBy('date', 'desc')
+                    .limit(30)
                     .get();
 
-                const records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                records.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-
-                const present = records.filter(r => r.status === 'Present').length;
-                const late    = records.filter(r => r.status === 'Late').length;
+                const records = snap.docs.map(d => d.data());
                 
-                document.getElementById('histPresent').textContent = present;
-                document.getElementById('histLate').textContent = late;
+                document.getElementById('histPresent').textContent = records.filter(r => r.status === 'Present').length;
+                document.getElementById('histLate').textContent = records.filter(r => r.status === 'Late').length;
                 document.getElementById('histTotal').textContent = records.length;
 
                 const tbody = document.getElementById('historyTableBody');
-                if (records.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No records found</td></tr>';
-                    return;
-                }
-
                 tbody.innerHTML = records.map(r => `
                     <tr>
-                        <td>${formatDateDisplay(r.date)}</td>
+                        <td>${r.date}</td>
                         <td>${r.checkIn || '--:--'}</td>
                         <td>${r.checkOut || '--:--'}</td>
-                        <td>${calcTotalHoursDisplay(r.checkIn, r.checkOut, r.totalMinutes)}</td>
-                        <td><span class="status-badge ${r.status === 'Late' ? 'status-absent' : 'status-present'}">${r.status || 'Present'}</span></td>
-                        <td>${r.lateByMins > 0 ? r.lateByMins + 'm late' : 'On time'}</td>
+                        <td>${r.totalHours || '0.0h'}</td>
+                        <td><span class="badge ${r.status === 'Present' ? 'badge-present' : 'badge-late'}">${r.status || 'Present'}</span></td>
                     </tr>
                 `).join('');
+                if (records.length === 0) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 2rem;">No history found</td></tr>';
             } catch (e) {
                 console.error("History load error:", e);
-                document.getElementById('historyTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:red;">Error loading history</td></tr>';
             }
         }
-
-        function formatDateDisplay(dateStr) {
-            if (!dateStr) return '—';
-            const d = new Date(dateStr + 'T00:00:00');
-            return d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
-        }
-
-        function calcTotalHoursDisplay(checkIn, checkOut, totalMins) {
-            if (totalMins && totalMins > 0) return (totalMins / 60).toFixed(1) + 'h';
-            if (checkIn && checkOut) {
-                const [ih, im] = checkIn.split(':').map(Number);
-                const [oh, om] = checkOut.split(':').map(Number);
-                const mins = (oh * 60 + om) - (ih * 60 + im);
-                return (Math.max(0, mins) / 60).toFixed(1) + 'h';
-            }
-            return '—';
-        }
-
-        function startGpsTracking() {
-            const updateZoneBadge = (res) => {
-                const zoneBadge = document.getElementById('zoneBadge');
-                if (zoneBadge) {
-                    zoneBadge.style.background = res.isWithinRange ? "var(--success)" : "var(--danger)";
-                    zoneBadge.textContent = res.isWithinRange ? "🟢 In" : "🔴 Out";
+        
+        // Auto-close stale records on load
+        async function checkStaleRecord() {
+            try {
+                const openRecords = await AttendanceSvc.getOpenRecordsForStaff(session.docId);
+                for (const record of openRecords) {
+                    if (record.status !== 'Absent' && AttendanceSvc.hasShiftEnded(record)) {
+                        await AttendanceSvc.autoMarkOut(session, record.date, record.shiftEnd || session.shiftEnd);
+                    }
                 }
-            };
-            if (!gpsInterval) {
-                gpsInterval = setInterval(() => {
-                    checkStaffLocation(async (res) => {
-                        updateZoneBadge(res);
-                        if (todayRecord && !todayRecord.checkOut && todayRecord.checkIn && todayRecord.status !== 'Absent') {
-                           const today = getCurrentDate();
-                           const docId = `${session.docId}-${today}`;
-                           await db.collection('attendance').doc(docId).update({
-                               gpsFlagged: !res.isWithinRange || !!res.error,
-                               gpsNote: res.error
-                                 ? `GPS verification failed: ${res.error}`
-                                 : (res.isWithinRange
-                                    ? `Within ${res.distance}m`
-                                    : `Out of range: ${res.distance}m`),
-                               latitude: res.coords ? res.coords.lat : null,
-                               longitude: res.coords ? res.coords.lon : null,
-                               totalSecondsInZone: res.isWithinRange ? firebase.firestore.FieldValue.increment(60) : firebase.firestore.FieldValue.increment(0),
-                               lastGpsCheck: firebase.firestore.FieldValue.serverTimestamp()
-                           }).catch(e => console.error("Heartbeat fail:", e));
-                        }
-                    });
-                }, 60000);
+            } catch (e) {
+                console.error('Stale record check failed:', e);
             }
-            checkStaffLocation(() => {});
         }
+        checkStaleRecord();
 
-        function stopGpsTracking() {
-            if (gpsInterval) { clearInterval(gpsInterval); gpsInterval = null; }
-        }
+        setInterval(checkStaleRecord, 60000);
 
-        if (!shiftWindowInterval) {
-            shiftWindowInterval = setInterval(() => {
-                if (!todayRecord) updateUI(null);
-            }, 60000);
-        }
-
-        document.getElementById('displayDate').textContent = "Today is " + new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-
-        // Sidebar Toggle for Mobile
-        function toggleSidebar() {
-          document.getElementById('sidebar').classList.toggle('open');
-          document.getElementById('sidebarOverlay').classList.toggle('show');
-        }
-
-        // SW Registration
-        if ('serviceWorker' in navigator) {
-          window.addEventListener('load', () => {            navigator.serviceWorker.register('./sw.js')
-              .then(() => console.log('SW registered'))
-              .catch(e => console.log('SW failed:', e));
-          });
+        function logoutUser() {
+            sessionStorage.removeItem('staffSession');
+            firebase.auth().signOut().then(() => {
+                window.location.href = './staff-login.html';
+            });
         }
     </script>
 </body>

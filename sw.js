@@ -1,4 +1,4 @@
-const CACHE = 'omhc-v4';
+const CACHE = 'omhc-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -12,12 +12,13 @@ const ASSETS = [
   './js/admin.js',
   './js/attendance.js',
   './js/report.js',
+  './js/gps.js',
   './assets/logo.jpeg'
 ];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).catch(() => undefined)
+    caches.open(CACHE).then(c => c.addAll(ASSETS))
   );
   self.skipWaiting();
 });
@@ -36,33 +37,62 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-
-  // Never cache during localhost development.
-  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-    e.respondWith(fetch(e.request));
-    return;
-  }
-
-  if (e.request.url.includes('firestore') ||
-      e.request.url.includes('firebase')) {
-    e.respondWith(fetch(e.request));
-    return;
-  }
-
-  // Network-first for HTML/CSS/JS to avoid stale UI.
   const destination = e.request.destination;
-  if (destination === 'document' || destination === 'style' || destination === 'script') {
+
+  // Skip Firebase/Firestore/Localhost
+  if (url.hostname === 'localhost' || 
+      url.hostname === '127.0.0.1' ||
+      url.href.includes('firestore.googleapis.com') ||
+      url.href.includes('firebase')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+
+  // Network-First for Scripts
+  if (destination === 'script') {
     e.respondWith(
       fetch(e.request)
-        .then(response => {
-          const copy = response.clone();
+        .then(res => {
+          const copy = res.clone();
           caches.open(CACHE).then(cache => cache.put(e.request, copy));
-          return response;
+          return res;
         })
         .catch(() => caches.match(e.request))
     );
     return;
   }
 
-  e.respondWith(caches.match(e.request).then(cached => cached || fetch(e.request)));
+  // Stale-While-Revalidate for CSS and Images
+  if (destination === 'style' || destination === 'image' || destination === 'font') {
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        const fetched = fetch(e.request).then(res => {
+          const copy = res.clone();
+          caches.open(CACHE).then(cache => cache.put(e.request, copy));
+          return res;
+        });
+        return cached || fetched;
+      })
+    );
+    return;
+  }
+
+  // Network-First for main documents to ensure latest data
+  if (destination === 'document') {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          const copy = res.clone();
+          caches.open(CACHE).then(cache => cache.put(e.request, copy));
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Default: Cache then Network
+  e.respondWith(
+    caches.match(e.request).then(cached => cached || fetch(e.request))
+  );
 });

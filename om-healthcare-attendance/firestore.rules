@@ -1,0 +1,107 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.email == 'omheathcare24@gmail.com';
+    }
+
+    function isStaffOwner(staffId) {
+      return signedIn() && request.auth.uid == staffId;
+    }
+
+    function validLatitude(lat) {
+      return lat is number && lat >= -90 && lat <= 90;
+    }
+
+    function validLongitude(lon) {
+      return lon is number && lon >= -180 && lon <= 180;
+    }
+
+    function validCoords(coords) {
+      return coords == null || (coords is map && validLatitude(coords.lat) && validLongitude(coords.lon));
+    }
+
+    function validDistance() {
+      return !('distanceMeters' in request.resource.data) || (request.resource.data.distanceMeters is number && request.resource.data.distanceMeters >= 0 && request.resource.data.distanceMeters <= 200000);
+    }
+
+    function validAccuracy() {
+      return !('gpsAccuracyMeters' in request.resource.data) || request.resource.data.gpsAccuracyMeters == null || (request.resource.data.gpsAccuracyMeters is number && request.resource.data.gpsAccuracyMeters >= 0 && request.resource.data.gpsAccuracyMeters <= 5000);
+    }
+
+    function validZoneStatus() {
+      return !('zoneStatus' in request.resource.data) || request.resource.data.zoneStatus in ['in_zone', 'out_of_zone', 'unknown'];
+    }
+
+    function validTrackingClock() {
+      return !('trackingUpdatedAtMs' in request.resource.data) || (request.resource.data.trackingUpdatedAtMs is number && request.resource.data.trackingUpdatedAtMs >= 0);
+    }
+
+    function deltaSquaredMeters(from, to) {
+      return ((to.lat - from.lat) * 111320.0) * ((to.lat - from.lat) * 111320.0) +
+        ((to.lon - from.lon) * 111320.0) * ((to.lon - from.lon) * 111320.0);
+    }
+
+    function validJump() {
+      return !('lastCoords' in request.resource.data) ||
+        request.resource.data.lastCoords == null ||
+        !('trackingUpdatedAtMs' in request.resource.data) ||
+        resource == null ||
+        !('lastCoords' in resource.data) ||
+        resource.data.lastCoords == null ||
+        !('trackingUpdatedAtMs' in resource.data) ||
+        request.resource.data.trackingUpdatedAtMs <= resource.data.trackingUpdatedAtMs ||
+        request.resource.data.trackingUpdatedAtMs - resource.data.trackingUpdatedAtMs > 120000 ||
+        deltaSquaredMeters(resource.data.lastCoords, request.resource.data.lastCoords) <= 1000000.0;
+    }
+
+    function validAttendanceShape() {
+      return request.resource.data.staffDocId is string &&
+        validCoords(request.resource.data.lastCoords) &&
+        validDistance() &&
+        validAccuracy() &&
+        validZoneStatus() &&
+        validTrackingClock() &&
+        validJump();
+    }
+
+    match /staff/{staffId} {
+      allow read: if isAdmin() || isStaffOwner(staffId);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.staffDocId == request.auth.uid);
+
+      allow create, update: if isAdmin() || (
+        signedIn() &&
+        request.resource.data.staffDocId == request.auth.uid &&
+        validAttendanceShape()
+      );
+
+      allow delete: if isAdmin();
+
+      match /locationLogs/{logId} {
+        allow read: if isAdmin() || (signedIn() && resource.data.staffDocId == request.auth.uid);
+        allow create: if isAdmin() || (
+          signedIn() &&
+          request.resource.data.staffDocId == request.auth.uid &&
+          validLatitude(request.resource.data.latitude) &&
+          validLongitude(request.resource.data.longitude) &&
+          request.resource.data.distanceMeters is number &&
+          request.resource.data.distanceMeters >= 0 &&
+          request.resource.data.distanceMeters <= 200000 &&
+          request.resource.data.accuracyMeters is number &&
+          request.resource.data.accuracyMeters >= 0 &&
+          request.resource.data.accuracyMeters <= 5000
+        );
+        allow update, delete: if isAdmin();
+      }
+    }
+  }
+}

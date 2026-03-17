@@ -1,6 +1,5 @@
 // Staff Login (Name + Password only, no Firebase Auth)
 async function loginStaff(enteredName, enteredPassword) {
-  console.log(`[AUTH] Staff login attempt: name=${enteredName}`);
   try {
     const nameLower = enteredName.trim().toLowerCase();
     const snap = await db.collection('staff')
@@ -28,39 +27,47 @@ async function loginStaff(enteredName, enteredPassword) {
     };
 
     sessionStorage.setItem('staffSession', JSON.stringify(sessionData));
-    console.log('[AUTH] Staff session established.');
+    sessionStorage.setItem('loginDate', window.getCurrentDate());
     window.location.href = './staff-dashboard.html';
+    return sessionData;
 
   } catch (error) {
     console.error('[AUTH] Staff Login Error:', error);
-    alert('Login Failed: ' + error.message);
+    throw error;
   }
+}
+
+// Helper for Admin Login Button
+async function handleAdminLogin() {
+  console.log('login clicked');
+  const passwordInput = document.getElementById('password') || document.getElementById('passwordInput');
+  const password = passwordInput ? passwordInput.value.trim() : '';
+  if (!password) {
+    alert('Please enter a password');
+    return;
+  }
+  return loginUser(window.ADMIN_EMAIL, password, 'admin');
 }
 
 // Admin Login (Uses Firebase Auth)
 async function loginUser(email, password, role) {
-  console.log(`[AUTH] Admin login attempt: email=${email}`);
   try {
-    const inputEmail = email.toLowerCase().trim();
-    if (inputEmail !== ADMIN_EMAIL.toLowerCase().trim()) {
-       throw new Error('Unauthorized Access. You do not have administrator permissions.');
-    }
-
-    const userCredential = await auth.signInWithEmailAndPassword(inputEmail, password);
-    const user = userCredential.user;
+    await auth.signInWithEmailAndPassword(email || window.ADMIN_EMAIL, password);
 
     const sessionToken = {
       role: 'admin',
-      email: inputEmail,
+      email: email || window.ADMIN_EMAIL,
       loggedIn: true,
       timestamp: Date.now()
     };
     sessionStorage.setItem('omhc_session', JSON.stringify(sessionToken));
+    sessionStorage.setItem('loginDate', window.getCurrentDate());
     window.location.href = './admin-dashboard.html';
+    return sessionToken;
 
   } catch (error) {
     console.error('[AUTH] Admin Login Exception:', error);
-    alert('Admin Login Failed: ' + error.message);
+    throw error;
   }
 }
 
@@ -75,6 +82,16 @@ function logoutUser() {
 
 // Verify auth session on load
 function verifySession(requiredRole) {
+  // 0. DAILY SESSION RESET CHECK
+  const today = window.getCurrentDate();
+  const loginDate = sessionStorage.getItem('loginDate');
+  
+  if (loginDate && loginDate !== today) {
+    sessionStorage.clear();
+    window.location.href = './index.html';
+    return;
+  }
+
   // 1. FAST SYNC CHECK
   if (requiredRole === 'staff') {
     const staffSession = JSON.parse(sessionStorage.getItem('staffSession') || '{}');
@@ -99,10 +116,15 @@ function verifySession(requiredRole) {
       console.warn("[AUTH] Admin Firebase state: No user logged in.");
       sessionStorage.removeItem('omhc_session');
       window.location.href = './admin-login.html';
-    } else if (user.email.toLowerCase().trim() !== ADMIN_EMAIL.toLowerCase().trim()) {
+    } else if (user.email.toLowerCase().trim() !== window.ADMIN_EMAIL.toLowerCase().trim()) {
       window.location.href = './staff-dashboard.html';
     }
   });
 }
 
 // Auth session verification ends here
+window.loginStaff = loginStaff;
+window.loginUser = loginUser;
+window.handleAdminLogin = handleAdminLogin;
+window.logoutUser = logoutUser;
+window.verifySession = verifySession;
