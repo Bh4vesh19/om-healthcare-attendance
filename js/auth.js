@@ -26,9 +26,16 @@ async function loginStaff(enteredName, enteredPassword) {
       lateGraceMins: data.lateGraceMins || 15
     };
 
-    sessionStorage.setItem('staffSession', JSON.stringify(sessionData));
-    sessionStorage.setItem('loginDate', window.getCurrentDate());
-    window.location.href = './staff-dashboard.html';
+    try {
+      sessionStorage.setItem('staffSession', JSON.stringify(sessionData));
+      sessionStorage.setItem('loginDate', window.getCurrentDate());
+    } catch (e) {
+      console.warn('Storage fallback to localStorage');
+      localStorage.setItem('staffSession', JSON.stringify(sessionData));
+      localStorage.setItem('loginDate', window.getCurrentDate());
+    }
+    
+    window.location.assign('./staff-dashboard.html');
     return sessionData;
 
   } catch (error) {
@@ -60,9 +67,16 @@ async function loginUser(email, password, role) {
       loggedIn: true,
       timestamp: Date.now()
     };
-    sessionStorage.setItem('omhc_session', JSON.stringify(sessionToken));
-    sessionStorage.setItem('loginDate', window.getCurrentDate());
-    window.location.href = './admin-dashboard.html';
+    try {
+      sessionStorage.setItem('omhc_session', JSON.stringify(sessionToken));
+      sessionStorage.setItem('loginDate', window.getCurrentDate());
+    } catch (e) {
+      console.warn('Storage fallback to localStorage');
+      localStorage.setItem('omhc_session', JSON.stringify(sessionToken));
+      localStorage.setItem('loginDate', window.getCurrentDate());
+    }
+    
+    window.location.assign('./admin-dashboard.html');
     return sessionToken;
 
   } catch (error) {
@@ -75,8 +89,11 @@ async function loginUser(email, password, role) {
 function logoutUser() {
   sessionStorage.removeItem('omhc_session');
   sessionStorage.removeItem('staffSession');
+  localStorage.removeItem('omhc_session');
+  localStorage.removeItem('staffSession');
+  
   auth.signOut().finally(() => {
-    window.location.href = './index.html';
+    window.location.assign('./index.html');
   });
 }
 
@@ -84,29 +101,45 @@ function logoutUser() {
 function verifySession(requiredRole) {
   // 0. DAILY SESSION RESET CHECK
   const today = window.getCurrentDate();
-  const loginDate = sessionStorage.getItem('loginDate');
+  let loginDate = sessionStorage.getItem('loginDate');
+  
+  // Storage fallback
+  if (!loginDate) loginDate = localStorage.getItem('loginDate');
   
   if (loginDate && loginDate !== today) {
     sessionStorage.clear();
-    window.location.href = './index.html';
+    localStorage.clear();
+    window.location.assign('./index.html');
     return;
   }
 
   // 1. FAST SYNC CHECK
   if (requiredRole === 'staff') {
-    const staffSession = JSON.parse(sessionStorage.getItem('staffSession') || '{}');
+    let staffSession = JSON.parse(sessionStorage.getItem('staffSession') || '{}');
+    
+    // Storage fallback
+    if (!staffSession.loggedIn) {
+      staffSession = JSON.parse(localStorage.getItem('staffSession') || '{}');
+    }
+
     if (!staffSession.loggedIn) {
       console.warn("[AUTH] No valid staff session found.");
-      window.location.href = './staff-login.html';
+      window.location.assign('./staff-login.html');
       return;
     }
-    return; // Staff verification ends here (no Firebase check)
+    return; // Staff verification ends here
   }
 
-  const adminSession = JSON.parse(sessionStorage.getItem('omhc_session') || '{}');
+  let adminSession = JSON.parse(sessionStorage.getItem('omhc_session') || '{}');
+  
+  // Storage fallback
+  if (!adminSession.loggedIn || adminSession.role !== 'admin') {
+    adminSession = JSON.parse(localStorage.getItem('omhc_session') || '{}');
+  }
+
   if (!adminSession.loggedIn || adminSession.role !== 'admin') {
     console.warn("[AUTH] No valid admin session found.");
-    window.location.href = './admin-login.html';
+    window.location.assign('./admin-login.html');
     return;
   }
 
