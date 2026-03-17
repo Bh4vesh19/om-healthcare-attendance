@@ -513,7 +513,6 @@
         // Strict session guard
         const a = JSON.parse(sessionStorage.getItem('adminSession') || '{}');
         if (!a.loggedIn || a.role !== 'admin') {
-          console.warn("Unauthorized access: Redirecting to login");
           window.location.href = './admin-login.html';
         }
 

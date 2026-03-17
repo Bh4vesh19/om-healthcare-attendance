@@ -110,11 +110,8 @@ window.doLogin = async function() {
   try {
     await signInWithEmailAndPassword(auth, "omheathcare24@gmail.com", password);
     
-    // Standardize session key (Safe check)
+    // Standardize session key
     sessionStorage.setItem('adminSession', JSON.stringify({ loggedIn: true, role: 'admin' }));
-    
-    console.log("Admin login success");
-    console.log("Session stored:", sessionStorage.getItem('adminSession'));
     
     msg.className = 'msg success';
     msg.textContent = '✓ Login successful! Redirecting...';
