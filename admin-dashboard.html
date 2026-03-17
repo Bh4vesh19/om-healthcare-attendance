@@ -510,8 +510,10 @@
 
     <script type="module">
         // Synchronous guard (though modules run after DOM, this is at the end of body)
-        const session = JSON.parse(sessionStorage.getItem('omhc_session') || '{}');
-        if (!session.loggedIn || session.role !== 'admin') {
+        // Strict session guard
+        const a = JSON.parse(sessionStorage.getItem('adminSession') || '{}');
+        if (!a.loggedIn || a.role !== 'admin') {
+          console.warn("Unauthorized access: Redirecting to login");
           window.location.href = './admin-login.html';
         }
 

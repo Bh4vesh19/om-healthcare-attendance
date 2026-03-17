@@ -49,7 +49,7 @@ self.addEventListener('fetch', e => {
   }
 
   // Network-First for Scripts
-  if (destination === 'script') {
+  if (destination === 'script' || url.pathname.endsWith('.js')) {
     e.respondWith(
       fetch(e.request)
         .then(res => {

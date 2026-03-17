@@ -109,10 +109,18 @@ window.doLogin = async function() {
   msg.textContent = '';
   try {
     await signInWithEmailAndPassword(auth, "omheathcare24@gmail.com", password);
-    sessionStorage.setItem('omhc_session', JSON.stringify({ loggedIn: true, role: 'admin' }));
+    
+    // Standardize session key (Safe check)
+    sessionStorage.setItem('adminSession', JSON.stringify({ loggedIn: true, role: 'admin' }));
+    
+    console.log("Admin login success");
+    console.log("Session stored:", sessionStorage.getItem('adminSession'));
+    
     msg.className = 'msg success';
     msg.textContent = '✓ Login successful! Redirecting...';
-    setTimeout(() => { window.location.href = 'admin-dashboard.html'; }, 1000);
+    
+    // Relative path for GitHub Pages
+    setTimeout(() => { window.location.href = './admin-dashboard.html'; }, 1000);
   } catch(err) {
     msg.className = 'msg error';
     msg.textContent = 'Incorrect password. Please try again.';
