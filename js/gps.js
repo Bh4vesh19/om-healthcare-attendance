@@ -150,6 +150,13 @@ async function checkStaffLocation(onResult) {
 
   navigator.geolocation.getCurrentPosition(
     position => {
+      // Accuracy validation (Critical)
+      if (position.coords.accuracy > 30) {
+        alert("GPS signal is weak. Please move outside and try again.");
+        onResult({ isWithinRange: false, error: "Weak GPS signal." });
+        return;
+      }
+
       const distance = getDistanceMeters(
         position.coords.latitude, 
         position.coords.longitude,
@@ -195,7 +202,14 @@ const GPS = {
   getCoordinates: function() {
     return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
-        p => resolve({lat: p.coords.latitude, lon: p.coords.longitude}),
+        p => {
+          if (p.coords.accuracy > 30) {
+            alert("GPS signal is weak. Please move outside and try again.");
+            reject(new Error("Weak GPS signal."));
+            return;
+          }
+          resolve({lat: p.coords.latitude, lon: p.coords.longitude});
+        },
         e => reject(e),
         GPS_OPTIONS
       );
