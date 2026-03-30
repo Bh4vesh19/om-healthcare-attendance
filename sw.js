@@ -1,4 +1,4 @@
-const CACHE = 'omhc-v5';
+const CACHE = 'omhc-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -12,7 +12,6 @@ const ASSETS = [
   './js/admin.js',
   './js/attendance.js',
   './js/report.js',
-  './js/gps.js',
   './assets/logo.jpeg'
 ];
 
@@ -39,12 +38,10 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   const destination = e.request.destination;
 
-  // Skip Firebase/Firestore/Localhost
-  if (url.hostname === 'localhost' || 
-      url.hostname === '127.0.0.1' ||
-      url.href.includes('firestore.googleapis.com') ||
-      url.href.includes('firebase')) {
-    e.respondWith(fetch(e.request));
+  // Skip Firebase/Firestore/googleapis — always fresh
+  if (url.href.includes('firebase') ||
+      url.href.includes('firestore') ||
+      url.href.includes('googleapis')) {
     return;
   }
 
@@ -77,7 +74,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Network-First for main documents to ensure latest data
+  // Network-First for main documents
   if (destination === 'document') {
     e.respondWith(
       fetch(e.request)

@@ -2,7 +2,7 @@ const AdminSvc = {
   _staffUnsubscribe: null,
 
   // Add new staff members
-  async addStaff(name, password, role, shiftStart = "09:00", shiftEnd = "18:00", lateGrace = "15") {
+  async addStaff(name, password, role, shiftStart = "09:00", shiftEnd = "00:00", lateGrace = "15") {
     const nameTrimmed = name.trim();
     const nameLower = nameTrimmed.toLowerCase();
     
@@ -68,10 +68,48 @@ const AdminSvc = {
     return { id: doc.id, ...doc.data() };
   },
 
+  // Show skeleton loader immediately
+  showTableSkeleton() {
+    const tbody = document.getElementById('attendanceTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = Array(5).fill(`
+      <tr>
+        <td><div class="skeleton" style="width:120px;height:16px"></div></td>
+        <td><div class="skeleton" style="width:60px;height:16px"></div></td>
+        <td><div class="skeleton" style="width:60px;height:16px"></div></td>
+        <td><div class="skeleton" style="width:60px;height:16px"></div></td>
+        <td><div class="skeleton" style="width:60px;height:16px"></div></td>
+        <td><div class="skeleton" style="width:70px;height:24px;border-radius:20px"></div></td>
+      </tr>
+    `).join('');
+  },
+
+  // Auto-absent check for ALL staff on admin load
+  async runAutoAbsentForAllStaff() {
+    try {
+      const activeStaff = await this.getAllActiveStaff();
+      for (const staff of activeStaff) {
+        await AttendanceSvc.checkAndMarkAbsent(
+          staff.id,
+          staff.name,
+          staff.shiftStart || '09:00',
+          staff.shiftEnd || '00:00',
+          staff.role || 'Staff'
+        );
+      }
+      console.log('[ADMIN] Auto-absent check completed for all staff');
+    } catch (e) {
+      console.error('[ADMIN] Auto-absent check error:', e);
+    }
+  },
+
   async listenTodayStats() {
     const today = getCurrentDate();
     const activeStaff = await this.getAllActiveStaff();
     
+    // Show skeleton immediately
+    this.showTableSkeleton();
+
     return db.collection('attendance').where('date', '==', today).onSnapshot(snapshot => {
       const recordsMap = {};
       snapshot.forEach(doc => {
@@ -80,11 +118,8 @@ const AdminSvc = {
 
       const finalRecords = activeStaff.map(staff => {
         if (recordsMap[staff.id]) {
-          const data = recordsMap[staff.id];
-          data.zoneStatusResolved = this.getResolvedZoneStatus(data);
-          return data;
+          return recordsMap[staff.id];
         }
-        // Staff member who hasn't checked in yet
         return {
           staffDocId: staff.id,
           staffName: staff.name,
@@ -95,25 +130,20 @@ const AdminSvc = {
         };
       });
 
-      const stats = { present: 0, absent: 0, late: 0, gpsFlagged: 0 };
+      const stats = { present: 0, absent: 0, late: 0 };
       
       finalRecords.forEach(data => {
         if (data.status === 'Present' || data.status === 'Late') stats.present++;
         if (data.status === 'Absent') stats.absent++;
         if (data.status === 'Late') stats.late++;
-        if (data.zoneStatusResolved === 'out_of_zone') stats.gpsFlagged++;
       });
-
-      // Update Map
-      this.updateMapMarkers(finalRecords.filter(r => r.checkIn));
 
       // Update Status Cards
       document.getElementById('statPresent').textContent = stats.present;
       document.getElementById('statAbsent').textContent = stats.absent;
       document.getElementById('statLate').textContent = stats.late;
-      document.getElementById('statGpsFlagged').textContent = stats.gpsFlagged;
 
-      // Update Table
+      // Update Table — replace skeleton with real data
       const tbody = document.getElementById('attendanceTableBody');
       if (tbody) {
         tbody.innerHTML = finalRecords.map(r => this.renderAttendanceRow(r)).join('');
@@ -122,42 +152,32 @@ const AdminSvc = {
   },
 
   renderAttendanceRow(r) {
-    const resolvedZone = this.getResolvedZoneStatus(r);
-    const zoneClass = resolvedZone === 'in_zone' ? 'zone-in' : (resolvedZone === 'out_of_zone' ? 'zone-out' : 'zone-unknown');
-    const zoneLabel = resolvedZone === 'in_zone' ? 'IN ZONE' : (resolvedZone === 'out_of_zone' ? 'OUT' : 'Unknown');
-    
     let statusClass = 'badge-present';
+    let statusLabel = r.status || 'Present';
     if (r.status === 'Late') statusClass = 'badge-late';
     if (r.status === 'Absent') statusClass = 'badge-absent';
 
     const workHrs = this.calcWorkingHours(r.checkIn, r.checkOut, r.date);
-    
-    let outTimeClass = 'out-zero';
-    const outMins = r.totalOutMins || 0;
-    if (outMins > 0 && outMins <= 10) outTimeClass = 'out-amber';
-    if (outMins > 10) outTimeClass = 'out-red';
-    
-    const outTimeStr = outMins > 60 ? `${Math.floor(outMins/60)}h ${outMins%60}m` : `${outMins}m`;
     const extraTimeStr = this.formatDuration(r.extraMinutes || 0);
+
+    // Auto tags
+    const autoCheckoutTag = r.autoCheckout ? ' <span class="auto-tag auto-tag-amber">[Auto]</span>' : '';
+    const autoAbsentTag = (r.autoAbsent && r.status === 'Absent') ? ' <span class="auto-tag auto-tag-grey">[Auto]</span>' : '';
+
+    const checkOutDisplay = (r.checkOut || '--:--') + autoCheckoutTag;
+    const statusDisplay = `<span class="badge ${statusClass}">${statusLabel}</span>${autoAbsentTag}`;
 
     const showAbsentBtn = (!r.checkIn && r.status !== 'Absent');
 
     return `
-      <tr class="${r.gpsFlagged ? 'flagged-row' : ''}">
+      <tr>
         <td class="staff-name">${r.staffName}</td>
         <td class="time-value">${r.checkIn || '--:--'}</td>
-        <td class="time-value">${r.checkOut || '--:--'}</td>
+        <td class="time-value">${checkOutDisplay}</td>
         <td class="work-hours">${workHrs}</td>
-        <td>
-          <div class="zone-cell">
-            <span class="zone-dot ${zoneClass}"></span>
-            <span class="zone-label-${resolvedZone || 'unknown'}">${zoneLabel}</span>
-          </div>
-        </td>
-        <td class="${outTimeClass}">${outTimeStr}</td>
         <td class="work-hours">${extraTimeStr}</td>
-        <td><span class="badge ${statusClass}">${r.status || 'Present'}</span></td>
         <td>
+          ${statusDisplay}
           ${showAbsentBtn ? `<button class="btn-absent" onclick="AdminSvc.markAbsent('${r.staffDocId}')">❌ Mark Absent</button>` : ''}
         </td>
       </tr>
@@ -169,7 +189,6 @@ const AdminSvc = {
     const today = getCurrentDate();
     const docId = `${staffDocId}-${today}`;
     try {
-      // Get staff name
       const staffDoc = await db.collection('staff').doc(staffDocId).get();
       const staffName = staffDoc.data().name;
       
@@ -180,6 +199,8 @@ const AdminSvc = {
         status: 'Absent',
         checkIn: null,
         checkOut: null,
+        autoCheckout: false,
+        autoAbsent: false,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     } catch (e) { alert("Error: " + e.message); }
@@ -262,9 +283,9 @@ const AdminSvc = {
   },
 
   getShiftEndBoundary(record) {
-    const [endH, endM] = (record.shiftEnd || '18:00').split(':').map(Number);
+    const [endH, endM] = (record.shiftEnd || '00:00').split(':').map(Number);
     const boundary = new Date(`${record.date}T${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`);
-    if (this.parseTimeToMinutes(record.shiftEnd, '18:00') <= this.parseTimeToMinutes(record.shiftStart, '09:00')) {
+    if (this.parseTimeToMinutes(record.shiftEnd, '00:00') <= this.parseTimeToMinutes(record.shiftStart, '09:00')) {
       boundary.setDate(boundary.getDate() + 1);
     }
     return boundary;
@@ -290,8 +311,7 @@ const AdminSvc = {
           totalMinutes,
           totalHours: parseFloat((totalMinutes / 60).toFixed(2)),
           extraMinutes: 0,
-          isAutoClosed: true,
-          zoneStatus: 'unknown',
+          autoCheckout: true,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
       }
@@ -302,7 +322,6 @@ const AdminSvc = {
 
   calcWorkingHours(checkInTime, checkOutTime, dateStr) {
     if (!checkInTime || checkInTime === '-') return '0.0h';
-    const [inH, inM] = checkInTime.split(':').map(Number);
     const checkInDate = new Date(`${dateStr}T${checkInTime}:00`);
     let now = new Date();
     if (checkOutTime && checkOutTime !== '-' && checkOutTime !== null) {
@@ -320,75 +339,272 @@ const AdminSvc = {
     const hours = Math.floor(safeMinutes / 60);
     const mins = safeMinutes % 60;
     return `${hours}h ${mins}m`;
-  },
-
-  getResolvedZoneStatus(record) {
-    const coords = record.lastCoords || record.coords;
-    if (coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lon)) {
-      const distance = getDistanceMeters(coords.lat, coords.lon, SHOP_LAT, SHOP_LNG);
-      return distance <= ALLOWED_RADIUS_METERS ? 'in_zone' : 'out_of_zone';
-    }
-    return record.zoneStatus || 'unknown';
-  },
-
-  initMap(containerId) {
-    if (typeof google === 'undefined') return;
-    const shopLoc = { lat: SHOP_LAT, lng: SHOP_LNG };
-    this.map = new google.maps.Map(document.getElementById(containerId), {
-      zoom: 17,
-      center: shopLoc,
-      styles: [
-        { "elementType": "geometry", "stylers": [{ "color": "#242f3e" }] },
-        { "elementType": "labels.text.fill", "stylers": [{ "color": "#746855" }] },
-        { "elementType": "labels.text.stroke", "stylers": [{ "color": "#242f3e" }] },
-        { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#17263c" }] }
-      ]
-    });
-
-    new google.maps.Marker({
-      position: shopLoc,
-      map: this.map,
-      title: "OM Health Care",
-      icon: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
-    });
-
-    new google.maps.Circle({
-      strokeColor: "#4caf7d",
-      strokeOpacity: 0.8,
-      strokeWeight: 2,
-      fillColor: "#4caf7d",
-      fillOpacity: 0.15,
-      map: this.map,
-      center: shopLoc,
-      radius: ALLOWED_RADIUS_METERS
-    });
-
-    this.markers = {};
-  },
-
-  updateMapMarkers(records) {
-    if (!this.map || !this.markers) return;
-    records.forEach(r => {
-      // Use lastCoords from new GPS implementation
-      const coords = r.lastCoords || r.coords;
-      if (coords && coords.lat) {
-        if (this.markers[r.staffDocId]) this.markers[r.staffDocId].setMap(null);
-        
-        const z = this.getResolvedZoneStatus(r).toLowerCase();
-        let iconUrl = 'https://maps.google.com/mapfiles/ms/icons/green-dot.png'; // in_zone
-        if (z === 'out_of_zone') iconUrl = 'https://maps.google.com/mapfiles/ms/icons/red-dot.png';
-        else if (z === 'unknown') iconUrl = 'https://maps.google.com/mapfiles/ms/icons/yellow-dot.png';
-
-        this.markers[r.staffDocId] = new google.maps.Marker({
-          position: { lat: coords.lat, lng: coords.lon },
-          map: this.map,
-          title: r.staffName,
-          label: { text: r.staffName[0].toUpperCase(), color: 'white' },
-          icon: iconUrl
-        });
-      }
-    });
   }
 };
 
 window.AdminSvc = AdminSvc;
+
+// ========================
+// PDF Download Functions
+// ========================
+
+function downloadPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape', 'mm', 'a4');
+
+  // Header
+  doc.setFontSize(18);
+  doc.setTextColor(210, 153, 34);
+  doc.text('OM Health Care', 14, 18);
+
+  doc.setFontSize(11);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Attendance Report', 14, 26);
+
+  // Date
+  const today = new Date().toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  doc.setFontSize(10);
+  doc.text(`Date: ${today}`, 14, 33);
+
+  // Generated at
+  const time = new Date().toLocaleTimeString('en-IN');
+  doc.text(`Generated at: ${time}`, 14, 39);
+
+  // Table data from current dashboard table
+  const rows = [];
+  const tableRows = document.querySelectorAll('#attendanceTableBody tr');
+
+  tableRows.forEach(row => {
+    const cells = row.querySelectorAll('td');
+    if (cells.length >= 6) {
+      rows.push([
+        cells[0].innerText.trim(),
+        cells[1].innerText.trim(),
+        cells[2].innerText.trim(),
+        cells[3].innerText.trim(),
+        cells[4].innerText.trim(),
+        cells[5].innerText.trim(),
+      ]);
+    }
+  });
+
+  if (rows.length === 0) {
+    alert('No attendance data to download.');
+    return;
+  }
+
+  // Generate table
+  doc.autoTable({
+    startY: 44,
+    head: [['Staff Name', 'Check In', 'Check Out', 'Work Hours', 'Extra Time', 'Status']],
+    body: rows,
+    headStyles: {
+      fillColor: [22, 27, 34],
+      textColor: [88, 166, 255],
+      fontStyle: 'bold',
+      fontSize: 10,
+    },
+    bodyStyles: {
+      fillColor: [13, 17, 23],
+      textColor: [230, 237, 243],
+      fontSize: 9,
+    },
+    alternateRowStyles: {
+      fillColor: [22, 27, 34],
+    },
+    styles: {
+      cellPadding: 4,
+      lineColor: [48, 54, 61],
+      lineWidth: 0.3,
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  // Footer
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(139, 148, 158);
+    doc.text(
+      `OM Health Care — Confidential | Page ${i} of ${pageCount}`,
+      14,
+      doc.internal.pageSize.height - 8
+    );
+  }
+
+  const fileName = `OM_Attendance_${getCurrentDate()}.pdf`;
+  doc.save(fileName);
+}
+
+async function downloadMonthlyPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape', 'mm', 'a4');
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const monthName = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+
+  const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  try {
+    const records = await AdminSvc.loadAttendanceRange(startDate, endDate);
+    if (!records || records.length === 0) {
+      alert('No attendance records found for this month.');
+      return;
+    }
+
+    // ── Page 1: Header ──
+    doc.setFontSize(18);
+    doc.setTextColor(210, 153, 34);
+    doc.text('OM Health Care', 14, 18);
+
+    doc.setFontSize(12);
+    doc.setTextColor(230, 237, 243);
+    doc.text('Monthly Attendance Report', 14, 26);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Period: ${monthName}`, 14, 33);
+    doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, 14, 39);
+
+    // ── Staff Summary Table ──
+    const staffMap = {};
+    records.forEach(r => {
+      const key = r.staffName || r.staffDocId || 'Unknown';
+      if (!staffMap[key]) staffMap[key] = { present: 0, late: 0, absent: 0, extraMins: 0, totalDays: 0 };
+      staffMap[key].totalDays++;
+      if (r.status === 'Present') staffMap[key].present++;
+      else if (r.status === 'Late') { staffMap[key].late++; staffMap[key].present++; }
+      else if (r.status === 'Absent') staffMap[key].absent++;
+      staffMap[key].extraMins += (r.extraMinutes || 0);
+    });
+
+    const summaryRows = Object.entries(staffMap).map(([name, s]) => [
+      name,
+      String(s.totalDays),
+      String(s.present),
+      String(s.late),
+      String(s.absent),
+      `${Math.floor(s.extraMins / 60)}h ${s.extraMins % 60}m`
+    ]);
+
+    doc.autoTable({
+      startY: 46,
+      head: [['Staff Name', 'Total Days', 'Present', 'Late', 'Absent', 'Extra Time']],
+      body: summaryRows,
+      headStyles: {
+        fillColor: [22, 27, 34],
+        textColor: [210, 153, 34],
+        fontStyle: 'bold',
+        fontSize: 10,
+      },
+      bodyStyles: {
+        fillColor: [13, 17, 23],
+        textColor: [230, 237, 243],
+        fontSize: 10,
+      },
+      alternateRowStyles: { fillColor: [22, 27, 34] },
+      styles: { cellPadding: 5, lineColor: [48, 54, 61], lineWidth: 0.3 },
+      margin: { left: 14, right: 14 },
+      // Color-code status cells
+      didParseCell: function(data) {
+        if (data.section === 'body') {
+          // Absent column (index 4) — red if > 0
+          if (data.column.index === 4 && parseInt(data.cell.text[0]) > 0) {
+            data.cell.styles.textColor = [248, 81, 73];
+            data.cell.styles.fontStyle = 'bold';
+          }
+          // Late column (index 3) — amber if > 0
+          if (data.column.index === 3 && parseInt(data.cell.text[0]) > 0) {
+            data.cell.styles.textColor = [210, 153, 34];
+            data.cell.styles.fontStyle = 'bold';
+          }
+          // Present column (index 2) — green
+          if (data.column.index === 2 && parseInt(data.cell.text[0]) > 0) {
+            data.cell.styles.textColor = [63, 185, 80];
+          }
+        }
+      }
+    });
+
+    // ── All Records Table (continues on same/next page) ──
+    const lastY = doc.lastAutoTable.finalY + 12;
+
+    doc.setFontSize(11);
+    doc.setTextColor(88, 166, 255);
+    doc.text('Detailed Records', 14, lastY);
+
+    // Sort all records by date then name
+    records.sort((a, b) => {
+      const dateCmp = (a.date || '').localeCompare(b.date || '');
+      if (dateCmp !== 0) return dateCmp;
+      return (a.staffName || '').localeCompare(b.staffName || '');
+    });
+
+    const detailRows = records.map(r => [
+      r.date || '-',
+      r.staffName || '-',
+      r.checkIn || '--:--',
+      r.checkOut || '--:--',
+      AdminSvc.calcWorkingHours(r.checkIn, r.checkOut, r.date),
+      AdminSvc.formatDuration(r.extraMinutes || 0),
+      r.status || '-'
+    ]);
+
+    doc.autoTable({
+      startY: lastY + 4,
+      head: [['Date', 'Staff Name', 'Check In', 'Check Out', 'Work Hours', 'Extra Time', 'Status']],
+      body: detailRows,
+      headStyles: {
+        fillColor: [22, 27, 34],
+        textColor: [88, 166, 255],
+        fontStyle: 'bold',
+        fontSize: 9,
+      },
+      bodyStyles: {
+        fillColor: [13, 17, 23],
+        textColor: [230, 237, 243],
+        fontSize: 8,
+      },
+      alternateRowStyles: { fillColor: [22, 27, 34] },
+      styles: { cellPadding: 3, lineColor: [48, 54, 61], lineWidth: 0.3 },
+      margin: { left: 14, right: 14 },
+      didParseCell: function(data) {
+        if (data.section === 'body' && data.column.index === 6) {
+          const val = data.cell.text[0];
+          if (val === 'Absent') data.cell.styles.textColor = [248, 81, 73];
+          else if (val === 'Late') data.cell.styles.textColor = [210, 153, 34];
+          else if (val === 'Present') data.cell.styles.textColor = [63, 185, 80];
+        }
+      }
+    });
+
+    // Footer on all pages
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(139, 148, 158);
+      doc.text(
+        `OM Health Care — Confidential | Page ${i} of ${pageCount}`,
+        14,
+        doc.internal.pageSize.height - 8
+      );
+    }
+
+    const fileName = `OM_Monthly_${startDate}_to_${endDate}.pdf`;
+    doc.save(fileName);
+  } catch (e) {
+    console.error('Monthly PDF error:', e);
+    alert('Error generating monthly PDF: ' + e.message);
+  }
+}
+
+window.downloadPDF = downloadPDF;
+window.downloadMonthlyPDF = downloadMonthlyPDF;

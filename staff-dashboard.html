@@ -7,10 +7,10 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" type="image/jpeg" href="./assets/logo.jpeg"/>
     <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#0D1117"/>
+    <meta name="theme-color" content="#D29922"/>
     <meta name="apple-mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-    <meta name="apple-mobile-web-app-title" content="OM Attendance"/>
+    <meta name="apple-mobile-web-app-title" content="OM Attend"/>
     <meta name="mobile-web-app-capable" content="yes"/>
     <meta name="format-detection" content="telephone=no">
     <link rel="manifest" href="./manifest.json"/>
@@ -22,7 +22,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <script src="js/firebase-config.js"></script>
     <script src="js/auth.js"></script>
-    <script src="js/gps.js"></script>
     <script src="js/attendance.js"></script>
 
     <style>
@@ -59,22 +58,6 @@
             display: block;
             margin: 0.5rem 0;
         }
-
-        .zone-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-weight: 700;
-            font-size: 13px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-        }
-
-        .zone-pill.in-zone { border-color: var(--accent-green); color: var(--accent-green); }
-        .zone-pill.out-zone { border-color: var(--accent-red); color: var(--accent-red); }
-        .zone-pill.locating { border-color: var(--text-secondary); color: var(--text-secondary); }
 
         .progress-ring-container {
             position: relative;
@@ -199,16 +182,8 @@
                         <button id="btnOut" class="btn btn-primary" style="width: 100%; margin-top: 1rem; background: var(--accent-red); display: none;" onclick="handleOut()">CHECK OUT</button>
                     </div>
 
-                    <!-- Right Column: Stats & Location -->
+                    <!-- Right Column: Stats -->
                     <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-                        <!-- Zone Pill -->
-                        <div class="glass-card" style="text-align: center; padding: 1.5rem;">
-                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem; text-transform: uppercase; font-weight: 600;">Location Status</p>
-                            <div id="zonePill" class="zone-pill locating">
-                                <span>🟡</span> <span>LOCATING...</span>
-                            </div>
-                        </div>
-
                         <!-- Stats Row -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="stat-card" style="border-left-color: var(--accent-green);">
@@ -280,17 +255,27 @@
     </div>
 
     <script>
-        // Synchronous Session Guard (iPhone Safari Compatibility)
-        const session = 
-            JSON.parse(sessionStorage.getItem('staffSession') || '{}').loggedIn ? JSON.parse(sessionStorage.getItem('staffSession')) :
-            JSON.parse(localStorage.getItem('staffSession') || '{}');
+        // Safe storage read helper (iPhone Safari private mode safe)
+        function safeGetSession(key) {
+            try {
+                const ss = sessionStorage.getItem(key);
+                if (ss) { const p = JSON.parse(ss); if (p && p.loggedIn) return p; }
+            } catch(e) {}
+            try {
+                const ls = localStorage.getItem(key);
+                if (ls) { const p = JSON.parse(ls); if (p && p.loggedIn) return p; }
+            } catch(e) {}
+            return null;
+        }
 
-        if (!session.loggedIn || session.role !== 'staff') {
+        // Synchronous Session Guard (iPhone Safari Compatibility)
+        const session = safeGetSession('staffSession');
+
+        if (!session || session.role !== 'staff') {
             window.location.assign('./staff-login.html');
         }
 
         let todayRecord = null;
-        let gpsInterval = null;
         let workTimerInterval = null;
         let countdownInterval = null;
 
@@ -302,7 +287,6 @@
             const pane = document.getElementById('pane-' + paneId);
             if (pane) pane.classList.add('active');
             
-            // Handle active states
             document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(l => l.classList.remove('active'));
             document.getElementById('side-nav-' + paneId)?.classList.add('active');
             document.getElementById('mob-nav-' + paneId)?.classList.add('active');
@@ -334,7 +318,7 @@
             let totalShift = endMins - startMins;
             let currentShift = nowMins - startMins;
 
-            if (totalShift < 0) { // Night Shift
+            if (totalShift < 0) {
                 totalShift += 1440;
                 if (nowMins < startMins) currentShift += 1440;
             }
@@ -345,6 +329,24 @@
         }
         setInterval(updateShiftProgress, 60000);
         updateShiftProgress();
+
+        // Auto-absent check on page load
+        AttendanceSvc.checkAndMarkAbsent(
+            session.docId,
+            session.name,
+            session.shiftStart,
+            session.shiftEnd,
+            session.staffRole || 'Staff'
+        );
+
+        // Schedule auto-absent at shift end
+        AttendanceSvc.scheduleAutoAbsent(
+            session.docId,
+            session.name,
+            session.shiftStart,
+            session.shiftEnd,
+            session.staffRole || 'Staff'
+        );
 
         // Start listening for today's attendance record
         AttendanceSvc.getTodayRecord(session.docId, record => {
@@ -395,7 +397,6 @@
                 document.getElementById('dispCheckOut').textContent = "--:--";
                 updateProgressRing(0);
                 if (workTimerInterval) clearInterval(workTimerInterval);
-                stopGpsTracking();
             } else {
                 document.getElementById('dispCheckIn').textContent = record.checkIn || "--:--";
                 
@@ -408,7 +409,6 @@
                     btnOut.style.display = 'none';
                     updateProgressRing(0);
                     if (workTimerInterval) clearInterval(workTimerInterval);
-                    stopGpsTracking();
                     return;
                 }
                 
@@ -423,7 +423,6 @@
                     const hrs = record.totalHours || 0;
                     updateProgressRing(hrs);
                     if (workTimerInterval) clearInterval(workTimerInterval);
-                    stopGpsTracking();
                 } else {
                     if (AttendanceSvc.hasShiftEnded(record)) {
                         AttendanceSvc.autoMarkOut(session, record.date, record.shiftEnd || session.shiftEnd);
@@ -437,7 +436,6 @@
                     btnOut.style.display = 'flex';
                     
                     startLiveWorkTimer(record.checkIn);
-                    startGpsTracking();
                 }
             }
         }
@@ -507,62 +505,6 @@
             countdownInterval = setInterval(update, 1000);
         }
 
-        function startGpsTracking() {
-            const updateZonePill = (res) => {
-                const pill = document.getElementById('zonePill');
-                if (pill) {
-                    pill.className = `zone-pill ${res.isWithinRange ? 'in-zone' : 'out-zone'}`;
-                    pill.innerHTML = res.isWithinRange 
-                        ? `<span>🟢</span> <span>IN ZONE</span>`
-                        : `<span>🔴</span> <span>OUT OF ZONE</span>`;
-                }
-            };
-            if (!gpsInterval) {
-                gpsInterval = setInterval(() => {
-                    if (typeof checkStaffLocation !== 'function') return;
-                    checkStaffLocation(async (res) => {
-                        updateZonePill(res);
-                        if (todayRecord && !todayRecord.checkOut && todayRecord.checkIn && !res.error) {
-                            const today = getCurrentDate();
-                            const docId = `${session.docId}-${today}`;
-                            await db.collection('attendance').doc(docId).update({
-                                zoneStatus: res.isWithinRange ? 'in_zone' : 'out_of_zone',
-                                gpsFlagged: !res.isWithinRange,
-                                lastCoords: res.coords || null,
-                                lastGpsUpdate: firebase.firestore.FieldValue.serverTimestamp(),
-                                lastGpsCheck: firebase.firestore.FieldValue.serverTimestamp()
-                            }).catch(e => console.error("Heartbeat fail:", e));
-                        }
-                    });
-                }, 1000);
-            }
-            if (typeof checkStaffLocation === 'function') {
-                checkStaffLocation(async (res) => {
-                    updateZonePill(res);
-                    if (todayRecord && !todayRecord.checkOut && todayRecord.checkIn && !res.error) {
-                        const today = getCurrentDate();
-                        const docId = `${session.docId}-${today}`;
-                        await db.collection('attendance').doc(docId).update({
-                            zoneStatus: res.isWithinRange ? 'in_zone' : 'out_of_zone',
-                            gpsFlagged: !res.isWithinRange,
-                            lastCoords: res.coords || null,
-                            lastGpsUpdate: firebase.firestore.FieldValue.serverTimestamp(),
-                            lastGpsCheck: firebase.firestore.FieldValue.serverTimestamp()
-                        }).catch(e => console.error("Heartbeat fail:", e));
-                    }
-                });
-            }
-        }
-
-        function stopGpsTracking() {
-            if (gpsInterval) { clearInterval(gpsInterval); gpsInterval = null; }
-            const pill = document.getElementById('zonePill');
-            if (pill) {
-                pill.className = "zone-pill locating";
-                pill.innerHTML = `<span>🟡</span> <span>OFF DUTY</span>`;
-            }
-        }
-
         async function handleIn() {
             const btn = document.getElementById('btnIn');
             const originalContent = btn.innerHTML;
@@ -573,7 +515,6 @@
                 const alreadyIn = await AttendanceSvc.checkAlreadyCheckedIn(session.docId);
                 if (alreadyIn) throw new Error('Already checked in today');
                 
-                await GPS.verifyWithinRange(ALLOWED_RADIUS_METERS);
                 await AttendanceSvc.markIn(session);
                 
                 btn.textContent = "✅ SUCCESS";
@@ -592,7 +533,6 @@
             btn.textContent = "SAVING...";
             btn.disabled = true;
             try {
-                await GPS.verifyWithinRange(ALLOWED_RADIUS_METERS);
                 await AttendanceSvc.markOut(session);
                 btn.textContent = "✅ CLOCKED OUT";
             } catch (e) {
@@ -624,7 +564,7 @@
                         <td>${r.checkIn || '--:--'}</td>
                         <td>${r.checkOut || '--:--'}</td>
                         <td>${r.totalHours || '0.0h'}</td>
-                        <td><span class="badge ${r.status === 'Present' ? 'badge-present' : 'badge-late'}">${r.status || 'Present'}</span></td>
+                        <td><span class="badge ${r.status === 'Present' ? 'badge-present' : (r.status === 'Late' ? 'badge-late' : 'badge-absent')}">${r.status || 'Present'}</span></td>
                     </tr>
                 `).join('');
                 if (records.length === 0) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 2rem;">No history found</td></tr>';
@@ -655,6 +595,17 @@
             localStorage.removeItem('staffSession');
             firebase.auth().signOut().then(() => {
                 window.location.assign('./staff-login.html');
+            });
+        }
+    </script>
+
+    <!-- SW Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js', { scope: './' })
+                    .then(() => console.log('SW registered'))
+                    .catch(e => console.log('SW failed:', e));
             });
         }
     </script>

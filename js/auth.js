@@ -1,3 +1,18 @@
+// Safe storage write helper (iPhone Safari private mode safe)
+function safeSetSession(key, data) {
+  const json = JSON.stringify(data);
+  try { sessionStorage.setItem(key, json); } catch(e) {}
+  try { localStorage.setItem(key, json); } catch(e) {}
+}
+
+function safeSetItem(key, value) {
+  try { sessionStorage.setItem(key, value); } catch(e) {}
+  try { localStorage.setItem(key, value); } catch(e) {}
+}
+
+// Set Firebase Auth persistence to LOCAL (survives Safari tab close)
+try { auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e) {}
+
 // Staff Login (Name + Password only, no Firebase Auth)
 async function loginStaff(enteredName, enteredPassword) {
   try {
@@ -26,14 +41,8 @@ async function loginStaff(enteredName, enteredPassword) {
       lateGraceMins: data.lateGraceMins || 15
     };
 
-    try {
-      sessionStorage.setItem('staffSession', JSON.stringify(sessionData));
-      sessionStorage.setItem('loginDate', window.getCurrentDate());
-    } catch (e) {
-      console.warn('Storage fallback to localStorage');
-      localStorage.setItem('staffSession', JSON.stringify(sessionData));
-      localStorage.setItem('loginDate', window.getCurrentDate());
-    }
+    safeSetSession('staffSession', sessionData);
+    safeSetItem('loginDate', window.getCurrentDate());
     
     window.location.assign('./staff-dashboard.html');
     return sessionData;
@@ -67,14 +76,8 @@ async function loginUser(email, password, role) {
       loggedIn: true,
       timestamp: Date.now()
     };
-    try {
-      sessionStorage.setItem('adminSession', JSON.stringify(sessionToken));
-      sessionStorage.setItem('loginDate', window.getCurrentDate());
-    } catch (e) {
-      console.warn('Storage fallback to localStorage');
-      localStorage.setItem('adminSession', JSON.stringify(sessionToken));
-      localStorage.setItem('loginDate', window.getCurrentDate());
-    }
+    safeSetSession('adminSession', sessionToken);
+    safeSetItem('loginDate', window.getCurrentDate());
     
     window.location.assign('./admin-dashboard.html');
     return sessionToken;

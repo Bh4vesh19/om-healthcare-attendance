@@ -7,22 +7,26 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" type="image/jpeg" href="./assets/logo.jpeg"/>
     <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#0D1117"/>
+    <meta name="theme-color" content="#D29922"/>
     <meta name="apple-mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-    <meta name="apple-mobile-web-app-title" content="OM Attendance"/>
+    <meta name="apple-mobile-web-app-title" content="OM Attend"/>
     <meta name="mobile-web-app-capable" content="yes"/>
+    <link rel="manifest" href="./manifest.json"/>
+    <link rel="apple-touch-icon" href="./assets/logo.jpeg"/>
     
     <!-- Firebase SDK (v8) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script type="module" src="js/firebase-config.js"></script>
-    <script type="module" src="js/auth.js"></script>
-    <script type="module" src="js/admin.js"></script>
-    <script type="module" src="js/report.js"></script>
-    <!-- Google Maps API -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAyt-m2girF-g_q63AVXYuQcdWw-HSdG0Y"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/attendance.js"></script>
+    <script src="js/report.js"></script>
+    <!-- jsPDF for PDF Downloads -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
     <style>
         .top-navbar {
@@ -210,17 +214,6 @@
                 min-width: 640px;
             }
         }
-
-        #map-container {
-            height: 400px;
-            border-radius: 12px;
-            overflow: hidden;
-            margin-top: 1rem;
-        }
-        
-        .map-section {
-            margin-bottom: 2rem;
-        }
     </style>
 </head>
 <body>
@@ -278,15 +271,11 @@
                             <span class="stat-value" id="statLate">0</span>
                             <span class="stat-label">⏰ LATE</span>
                         </div>
-                        <div class="stat-card" style="border-left-color: var(--accent-red);">
-                            <span class="stat-value" id="statGpsFlagged">0</span>
-                            <span class="stat-label">🚨 FLAGGED</span>
-                        </div>
                     </div>
 
-                    <div class="glass-card map-section">
-                        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">🗺️ Staff Location Map</h3>
-                        <div id="map-container"></div>
+                    <div style="display:flex; gap:0.75rem; margin-bottom:1.25rem; flex-wrap:wrap;">
+                        <button onclick="downloadPDF()" style="background:rgba(88,166,255,0.15); color:#58A6FF; border:1px solid #58A6FF; border-radius:8px; padding:8px 16px; font-weight:600; font-size:13px; cursor:pointer;">📥 Download PDF</button>
+                        <button onclick="downloadMonthlyPDF()" style="background:rgba(210,153,34,0.15); color:#D29922; border:1px solid #D29922; border-radius:8px; padding:8px 16px; font-weight:600; font-size:13px; cursor:pointer;">📥 Monthly PDF</button>
                     </div>
 
                     <div class="table-wrapper">
@@ -297,15 +286,12 @@
                                     <th>CHECK IN</th>
                                     <th>CHECK OUT</th>
                                     <th>WORK HOURS</th>
-                                    <th>ZONE</th>
-                                    <th>OUT TIME</th>
                                     <th>EXTRA TIME</th>
                                     <th>STATUS</th>
-                                    <th>ACTIONS</th>
                                 </tr>
                             </thead>
                             <tbody id="attendanceTableBody">
-                                <!-- Populated by js/admin.js -->
+                                <!-- Skeleton loaded by JS -->
                             </tbody>
                         </table>
                     </div>
@@ -357,7 +343,7 @@
 
                                     <div class="form-group">
                                         <label for="staffShiftEnd">Shift End</label>
-                                        <input type="time" id="staffShiftEnd" value="18:00" required />
+                                        <input type="time" id="staffShiftEnd" value="00:00" required />
                                     </div>
 
                                     <div class="full-span form-group">
@@ -377,7 +363,7 @@
                         <div class="glass-card staff-list-card" style="padding:0;">
                             <div style="padding:1.25rem 1.25rem 0.75rem; border-bottom:1px solid var(--border);">
                                 <h3 style="font-size:1.15rem; margin-bottom:0.2rem;">Registered Staff</h3>
-                                <p style="color:var(--text-secondary); font-size:0.92rem;">Update shift timing, password, and access without breaking the page layout.</p>
+                                <p style="color:var(--text-secondary); font-size:0.92rem;">Update shift timing, password, and access.</p>
                             </div>
                         <div class="table-wrapper">
                             <table>
@@ -483,16 +469,15 @@
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
                         <div class="glass-card">
                             <h3 style="margin-bottom: 0.5rem;">System Overview</h3>
-                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Quick reference values for your client and future maintenance.</p>
+                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Quick reference values.</p>
                             <div style="display:grid; gap:0.75rem;">
-                                <div><strong>Store Radius:</strong> <span id="settingsRadiusValue">100m</span></div>
                                 <div><strong>Admin Email:</strong> <span id="settingsAdminEmail">omheathcare24@gmail.com</span></div>
-                                <div><strong>Default Shift:</strong> <span id="settingsDefaultShift">09:00 - 18:00</span></div>
+                                <div><strong>Default Shift:</strong> <span id="settingsDefaultShift">09:00 - 00:00</span></div>
                             </div>
                         </div>
                         <div class="glass-card">
                             <h3 style="margin-bottom: 0.5rem;">Future Tools</h3>
-                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Useful admin actions without changing the workflow.</p>
+                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Useful admin actions.</p>
                             <div style="display:grid; gap:0.75rem;">
                                 <button class="btn btn-ghost" onclick="window.exportCurrentMonth()">Download Current Month CSV</button>
                                 <button class="btn btn-ghost" onclick="window.refreshAllData()">Refresh Staff + Reports</button>
@@ -500,7 +485,7 @@
                         </div>
                         <div class="glass-card">
                             <h3 style="margin-bottom: 0.5rem;">Monthly Reporting</h3>
-                            <p style="color: var(--text-secondary);">Admin can now load and download monthly reports for all staff or one individual staff member from the Reports section.</p>
+                            <p style="color: var(--text-secondary);">Admin can load and download monthly reports from the Reports section.</p>
                         </div>
                     </div>
                 </div>
@@ -508,12 +493,13 @@
         </main>
     </div>
 
-    <script type="module">
-        // Synchronous guard (though modules run after DOM, this is at the end of body)
-        // Strict session guard
-        const a = JSON.parse(sessionStorage.getItem('adminSession') || '{}');
-        if (!a.loggedIn || a.role !== 'admin') {
-          window.location.href = './admin-login.html';
+    <script>
+        // Strict session guard (iPhone Safari safe)
+        let a = null;
+        try { const s = sessionStorage.getItem('adminSession'); if (s) a = JSON.parse(s); } catch(e) {}
+        if (!a || !a.loggedIn) { try { const s = localStorage.getItem('adminSession'); if (s) a = JSON.parse(s); } catch(e) {} }
+        if (!a || !a.loggedIn || a.role !== 'admin') {
+          window.location.assign('./admin-login.html');
         }
 
         function showPane(name) {
@@ -523,9 +509,6 @@
             document.querySelectorAll('.nav-item').forEach(l => l.classList.remove('active'));
             document.getElementById('nav-' + name).classList.add('active');
 
-            if (name === 'dashboard' && window.AdminSvc) {
-                setTimeout(() => window.AdminSvc.initMap('map-container'), 100);
-            }
             if (name === 'staff' && window.AdminSvc) {
                 window.AdminSvc.refreshStaffTable();
             }
@@ -536,7 +519,6 @@
                 window.ReportSvc?.populateStaffFilter().then(() => window.ReportSvc?.loadMonthlyReport());
             }
         }
-        window.showPane = showPane;
 
         function updateTopDate() {
             const now = new Date();
@@ -545,17 +527,25 @@
         setInterval(updateTopDate, 60000);
         updateTopDate();
 
-        // Initial setup
+        // Initial setup — show skeleton, then load data
         window.addEventListener('load', () => {
             if (window.AdminSvc) {
+                // Show skeleton immediately
+                window.AdminSvc.showTableSkeleton();
+                
+                // Run auto-absent for all staff (Rule 1)
+                window.AdminSvc.runAutoAbsentForAllStaff();
+                
+                // Reconcile open records
                 window.AdminSvc.reconcileOpenAttendanceRecords();
-                window.AdminSvc.initMap('map-container');
+                
+                // Start live data listener (replaces skeleton when data arrives)
                 window.AdminSvc.listenTodayStats();
             }
         });
 
         window.logoutUser = () => {
-             sessionStorage.removeItem('omhc_session');
+             sessionStorage.removeItem('adminSession');
              firebase.auth().signOut().then(() => {
                 window.location.href = './admin-login.html';
              });
@@ -577,7 +567,7 @@
             document.getElementById('staffPassword').value = '';
             document.getElementById('staffRole').value = 'Medical Staff';
             document.getElementById('staffShiftStart').value = '09:00';
-            document.getElementById('staffShiftEnd').value = '18:00';
+            document.getElementById('staffShiftEnd').value = '00:00';
             document.getElementById('staffLateGrace').value = '15';
             document.getElementById('staffFormTitle').textContent = 'Register New Staff';
             document.getElementById('staffFormSubtitle').textContent = 'Create a new staff login with shift timing and access role.';
@@ -585,7 +575,6 @@
             document.getElementById('staffCancelBtn').style.display = 'none';
             if (staffMessage) staffMessage.style.display = 'none';
         }
-        window.resetStaffForm = resetStaffForm;
 
         window.editStaffFromTable = async (id) => {
             try {
@@ -595,7 +584,7 @@
                 document.getElementById('staffPassword').value = staff.password || '';
                 document.getElementById('staffRole').value = staff.role || 'Medical Staff';
                 document.getElementById('staffShiftStart').value = staff.shiftStart || '09:00';
-                document.getElementById('staffShiftEnd').value = staff.shiftEnd || '18:00';
+                document.getElementById('staffShiftEnd').value = staff.shiftEnd || '00:00';
                 document.getElementById('staffLateGrace').value = staff.lateGraceMins || 15;
                 document.getElementById('staffFormTitle').textContent = 'Update Staff Details';
                 document.getElementById('staffFormSubtitle').textContent = 'Modify shift timing, password, or role for the selected staff member.';
@@ -633,7 +622,7 @@
                 }
                 resetStaffForm();
                 window.AdminSvc.refreshStaffTable();
-                await window.ReportSvc.populateStaffFilter();
+                await window.ReportSvc?.populateStaffFilter();
             } catch (e) {
                 showStaffMessage(e.message || 'Unable to save staff record.', 'error');
             } finally {
@@ -645,9 +634,9 @@
             const now = new Date();
             const m = (now.getMonth() + 1).toString().padStart(2, '0');
             document.getElementById('reportMonth').value = `${now.getFullYear()}-${m}`;
-            await window.ReportSvc.populateStaffFilter();
-            await window.ReportSvc.loadMonthlyReport();
-            await window.ReportSvc.downloadMonthlyReport('csv');
+            await window.ReportSvc?.populateStaffFilter();
+            await window.ReportSvc?.loadMonthlyReport();
+            await window.ReportSvc?.downloadMonthlyReport('csv');
         };
 
         window.refreshAllData = async () => {
@@ -670,6 +659,17 @@
                 await window.ReportSvc.loadMonthlyReport();
             }
         });
+    </script>
+
+    <!-- SW Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js', { scope: './' })
+                    .then(() => console.log('SW registered'))
+                    .catch(e => console.log('SW failed:', e));
+            });
+        }
     </script>
 </body>
 </html>

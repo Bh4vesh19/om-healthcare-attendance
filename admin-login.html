@@ -6,6 +6,21 @@
   <title>Admin Login | OM Health Care</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/jpeg" href="./assets/logo.jpeg"/>
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#0D1117"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="OM Attendance"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <link rel="manifest" href="./manifest.json"/>
+  <link rel="apple-touch-icon" href="./assets/logo.jpeg"/>
+
+  <!-- Firebase SDK (v8) — same as all other pages -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/auth.js"></script>
   
   <style>
     .login-card {
@@ -71,7 +86,7 @@
     <form style="width: 100%; display: flex; flex-direction: column; gap: 1.5rem;">
       <div class="form-group" style="margin-bottom: 0;">
         <label>Access Password</label>
-        <input type="password" id="passwordInput" placeholder="Enter your password" required />
+        <input type="password" id="passwordInput" placeholder="Enter your password" required autocapitalize="off" autocorrect="off" />
       </div>
 
       <div class="msg" id="msg"></div>
@@ -79,56 +94,60 @@
       <button type="button" id="loginBtn" class="btn btn-gold btn-unlocked" style="width: 100%;" onclick="doLogin()">AUTHORIZE</button>
     </form>
 
-    <a href="index.html" class="back-link">← Back to selection</a>
+    <a href="./index.html" class="back-link">← Back to selection</a>
   </div>
 
-  <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyDU78Ze7rpB3r-0W_MhqfQS2Y0QqodgraY",
-  authDomain: "store-attendance-system.firebaseapp.com",
-  projectId: "store-attendance-system",
-  storageBucket: "store-attendance-system.firebasestorage.app",
-  messagingSenderId: "601354333815",
-  appId: "1:601354333815:web:0512759b171e27d4462072"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-
-window.doLogin = async function() {
-  const password = document.getElementById('passwordInput').value.trim();
-  const btn = document.getElementById('loginBtn');
-  const msg = document.getElementById('msg');
-  if (!password) { msg.className='msg error'; msg.textContent='Please enter your password.'; return; }
-  btn.disabled = true;
-  btn.textContent = 'Verifying...';
-  msg.className = 'msg';
-  msg.textContent = '';
-  try {
-    await signInWithEmailAndPassword(auth, "omheathcare24@gmail.com", password);
+  <script>
+    async function doLogin() {
+      const password = document.getElementById('passwordInput').value.trim();
+      const btn = document.getElementById('loginBtn');
+      const msg = document.getElementById('msg');
+      
+      if (!password) {
+        msg.className = 'msg error';
+        msg.textContent = 'Please enter your password.';
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+      msg.className = 'msg';
+      msg.textContent = '';
+      
+      try {
+        // Use shared auth from firebase-config.js (v8 compat)
+        await auth.signInWithEmailAndPassword(window.ADMIN_EMAIL, password);
+        
+        // Use safe storage helpers from auth.js
+        safeSetSession('adminSession', { loggedIn: true, role: 'admin', email: window.ADMIN_EMAIL, timestamp: Date.now() });
+        safeSetItem('loginDate', window.getCurrentDate());
+        
+        msg.className = 'msg success';
+        msg.textContent = '✓ Login successful! Redirecting...';
+        
+        setTimeout(() => { window.location.assign('./admin-dashboard.html'); }, 800);
+      } catch(err) {
+        msg.className = 'msg error';
+        msg.textContent = 'Incorrect password. Please try again.';
+        btn.disabled = false;
+        btn.textContent = 'AUTHORIZE';
+      }
+    }
     
-    // Standardize session key
-    sessionStorage.setItem('adminSession', JSON.stringify({ loggedIn: true, role: 'admin' }));
-    
-    msg.className = 'msg success';
-    msg.textContent = '✓ Login successful! Redirecting...';
-    
-    // Relative path for GitHub Pages
-    setTimeout(() => { window.location.href = './admin-dashboard.html'; }, 1000);
-  } catch(err) {
-    msg.className = 'msg error';
-    msg.textContent = 'Incorrect password. Please try again.';
-    btn.disabled = false;
-    btn.textContent = 'AUTHORIZE';
-  }
-};
+    document.getElementById('passwordInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doLogin();
+    });
+  </script>
 
-document.getElementById('passwordInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') window.doLogin();
-});
-</script>
+  <!-- SW Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { scope: './' })
+          .then(() => console.log('SW registered'))
+          .catch(e => console.log('SW failed:', e));
+      });
+    }
+  </script>
 </body>
 </html>
